@@ -1,18 +1,10 @@
 import React, { useState } from "react";
-import {
-  Button,
-  Menu,
-  MenuItem,
-  Select,
-  FormControl,
-  InputLabel,
-} from "@mui/material";
+import { Box, Button, ButtonGroup, Grid, Typography } from "@mui/material";
 
-function CustomCalendarMenu() {
-  const [anchorEl, setAnchorEl] = useState(null);
-  const [selectionType, setSelectionType] = useState("months");
-  const [selectedValue, setSelectedValue] = useState("");
-  const open = Boolean(anchorEl);
+function CalendarBoxView() {
+  const [view, setView] = useState("year"); // View can be 'year', 'quarter', or 'month'
+  const currentYear = new Date().getFullYear();
+  const lastTwoYears = [currentYear - 1, currentYear];
 
   const months = [
     "January",
@@ -29,83 +21,115 @@ function CustomCalendarMenu() {
     "December",
   ];
 
-  const quarters = ["Q1 (Jan - Mar)", "Q2 (Apr - Jun)", "Q3 (Jul - Sep)", "Q4 (Oct - Dec)"];
-  const years = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i);
+  const quarters = ["Q1 (Jan-Mar)", "Q2 (Apr-Jun)", "Q3 (Jul-Sep)", "Q4 (Oct-Dec)"];
 
-  const handleMenuOpen = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-  };
-
-  const handleSelectionTypeChange = (event) => {
-    setSelectionType(event.target.value);
-    setSelectedValue("");
-  };
-
-  const handleValueChange = (value) => {
-    setSelectedValue(value);
-    setAnchorEl(null); // Close the menu after selection
+  const handleViewChange = (newView) => {
+    setView(newView);
   };
 
   return (
-    <div>
-      {/* Button to open menu */}
-      <Button variant="contained" onClick={handleMenuOpen}>
-        {selectedValue || "Select Date Range"}
-      </Button>
+    <Box p={3}>
+      <Typography variant="h5" gutterBottom>
+        Calendar View
+      </Typography>
 
-      {/* Menu Component */}
-      <Menu
-        anchorEl={anchorEl}
-        open={open}
-        onClose={handleMenuClose}
-        MenuListProps={{
-          "aria-labelledby": "calendar-menu-button",
-        }}
-      >
-        {/* Dropdown to select Months, Quarters, or Years */}
-        <MenuItem>
-          <FormControl fullWidth>
-            <InputLabel id="selection-type-label">View By</InputLabel>
-            <Select
-              labelId="selection-type-label"
-              value={selectionType}
-              onChange={handleSelectionTypeChange}
-            >
-              <MenuItem value="months">Months</MenuItem>
-              <MenuItem value="quarters">Quarters</MenuItem>
-              <MenuItem value="years">Years</MenuItem>
-            </Select>
-          </FormControl>
-        </MenuItem>
+      {/* Button Group for View Selection */}
+      <ButtonGroup variant="contained" aria-label="View Selector">
+        <Button
+          color={view === "year" ? "primary" : "inherit"}
+          onClick={() => handleViewChange("year")}
+        >
+          Year
+        </Button>
+        <Button
+          color={view === "quarter" ? "primary" : "inherit"}
+          onClick={() => handleViewChange("quarter")}
+        >
+          Quarter
+        </Button>
+        <Button
+          color={view === "month" ? "primary" : "inherit"}
+          onClick={() => handleViewChange("month")}
+        >
+          Month
+        </Button>
+      </ButtonGroup>
 
-        {/* Options based on selection type */}
-        {selectionType === "months" &&
-          months.map((month) => (
-            <MenuItem key={month} onClick={() => handleValueChange(month)}>
-              {month}
-            </MenuItem>
-          ))}
+      {/* Display Content Based on Selected View */}
+      <Box mt={3}>
+        {view === "year" && (
+          <Grid container spacing={2}>
+            {lastTwoYears.map((year) => (
+              <Grid item xs={6} key={year}>
+                <Box
+                  display="flex"
+                  justifyContent="center"
+                  alignItems="center"
+                  p={2}
+                  border={1}
+                  borderRadius={2}
+                >
+                  <Typography variant="h6">{year}</Typography>
+                </Box>
+              </Grid>
+            ))}
+          </Grid>
+        )}
 
-        {selectionType === "quarters" &&
-          quarters.map((quarter) => (
-            <MenuItem key={quarter} onClick={() => handleValueChange(quarter)}>
-              {quarter}
-            </MenuItem>
-          ))}
+        {view === "quarter" && (
+          <Grid container spacing={2}>
+            {lastTwoYears.map((year) => (
+              <React.Fragment key={year}>
+                <Grid item xs={12}>
+                  <Typography variant="h6">{year}</Typography>
+                </Grid>
+                {quarters.map((quarter) => (
+                  <Grid item xs={6} key={`${year}-${quarter}`}>
+                    <Box
+                      display="flex"
+                      justifyContent="center"
+                      alignItems="center"
+                      p={2}
+                      border={1}
+                      borderRadius={2}
+                    >
+                      <Typography>{quarter}</Typography>
+                    </Box>
+                  </Grid>
+                ))}
+              </React.Fragment>
+            ))}
+          </Grid>
+        )}
 
-        {selectionType === "years" &&
-          years.map((year) => (
-            <MenuItem key={year} onClick={() => handleValueChange(year)}>
-              {year}
-            </MenuItem>
-          ))}
-      </Menu>
-    </div>
+        {view === "month" && (
+          <Grid container spacing={2}>
+            {lastTwoYears.map((year) => (
+              <React.Fragment key={year}>
+                <Grid item xs={12}>
+                  <Typography variant="h6">{year}</Typography>
+                </Grid>
+                {months.map((month) => (
+                  <Grid item xs={4} key={`${year}-${month}`}>
+                    <Box
+                      display="flex"
+                      justifyContent="center"
+                      alignItems="center"
+                      p={2}
+                      border={1}
+                      borderRadius={2}
+                    >
+                      <Typography>{month}</Typography>
+                    </Box>
+                  </Grid>
+                ))}
+              </React.Fragment>
+            ))}
+          </Grid>
+        )}
+      </Box>
+    </Box>
   );
 }
 
-export default CustomCalendarMenu;
+export default CalendarBoxView;
