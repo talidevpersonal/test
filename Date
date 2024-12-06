@@ -1,11 +1,9 @@
 import React, { useState } from "react";
-import { Box, Button, Menu, MenuItem, Typography } from "@mui/material";
+import { Box, Button, ButtonGroup, Grid, Typography, Popover } from "@mui/material";
 
-function CalendarFlyoutMenu() {
-  const [anchorEl, setAnchorEl] = useState(null);
-  const [selectedView, setSelectedView] = useState("year");
-  const [selectedValue, setSelectedValue] = useState("");
-
+function CalendarBoxView() {
+  const [view, setView] = useState("year"); // View can be 'year', 'quarter', or 'month'
+  const [anchorEl, setAnchorEl] = useState(null); // Anchor element for Popover
   const currentYear = new Date().getFullYear();
   const lastTwoYears = [currentYear - 1, currentYear];
 
@@ -26,94 +24,120 @@ function CalendarFlyoutMenu() {
 
   const quarters = ["Q1 (Jan-Mar)", "Q2 (Apr-Jun)", "Q3 (Jul-Sep)", "Q4 (Oct-Dec)"];
 
-  const handleMenuOpen = (event) => {
+  const handleButtonClick = (event, newView) => {
+    setView(newView);
     setAnchorEl(event.currentTarget);
   };
 
-  const handleMenuClose = () => {
+  const handleClose = () => {
     setAnchorEl(null);
-  };
-
-  const handleViewChange = (view) => {
-    setSelectedView(view);
-    setSelectedValue(""); // Reset value when view changes
-  };
-
-  const handleValueSelect = (value) => {
-    setSelectedValue(value);
-    setAnchorEl(null); // Close menu after selection
   };
 
   const open = Boolean(anchorEl);
 
   return (
-    <Box>
-      {/* Button to trigger the flyout menu */}
-      <Button variant="contained" onClick={handleMenuOpen}>
-        {selectedValue || "Select Date Range"}
-      </Button>
+    <Box p={3}>
+      <Typography variant="h5" gutterBottom>
+        Calendar View
+      </Typography>
 
-      {/* Flyout Menu */}
-      <Menu
-        anchorEl={anchorEl}
+      {/* Button Group for View Selection */}
+      <ButtonGroup variant="contained" aria-label="View Selector">
+        <Button onClick={(event) => handleButtonClick(event, "year")}>Year</Button>
+        <Button onClick={(event) => handleButtonClick(event, "quarter")}>Quarter</Button>
+        <Button onClick={(event) => handleButtonClick(event, "month")}>Month</Button>
+      </ButtonGroup>
+
+      {/* Popover to display selected view */}
+      <Popover
         open={open}
-        onClose={handleMenuClose}
-        MenuListProps={{
-          "aria-labelledby": "calendar-menu-button",
+        anchorEl={anchorEl}
+        onClose={handleClose}
+        anchorOrigin={{
+          vertical: "bottom",
+          horizontal: "left",
+        }}
+        transformOrigin={{
+          vertical: "top",
+          horizontal: "left",
         }}
       >
-        {/* View Selector */}
-        <MenuItem onClick={() => handleViewChange("year")}>Year</MenuItem>
-        <MenuItem onClick={() => handleViewChange("quarter")}>Quarter</MenuItem>
-        <MenuItem onClick={() => handleViewChange("month")}>Month</MenuItem>
-
-        {/* Divider */}
-        <Box sx={{ my: 1, borderBottom: "1px solid #ccc" }} />
-
-        {/* Dynamic Content Based on Selected View */}
-        {selectedView === "year" &&
-          lastTwoYears.map((year) => (
-            <MenuItem key={year} onClick={() => handleValueSelect(year)}>
-              {year}
-            </MenuItem>
-          ))}
-
-        {selectedView === "quarter" &&
-          lastTwoYears.map((year) => (
-            <React.Fragment key={year}>
-              <Typography sx={{ pl: 2, pt: 1, fontSize: "0.875rem" }}>
-                {year}
-              </Typography>
-              {quarters.map((quarter) => (
-                <MenuItem
-                  key={`${year}-${quarter}`}
-                  onClick={() => handleValueSelect(`${year} - ${quarter}`)}
-                >
-                  {quarter}
-                </MenuItem>
+        <Box p={2}>
+          {/* Display Content Based on Selected View */}
+          {view === "year" && (
+            <Grid container spacing={2}>
+              {lastTwoYears.map((year) => (
+                <Grid item xs={6} key={year}>
+                  <Box
+                    display="flex"
+                    justifyContent="center"
+                    alignItems="center"
+                    p={2}
+                    border={1}
+                    borderRadius={2}
+                  >
+                    <Typography variant="h6">{year}</Typography>
+                  </Box>
+                </Grid>
               ))}
-            </React.Fragment>
-          ))}
+            </Grid>
+          )}
 
-        {selectedView === "month" &&
-          lastTwoYears.map((year) => (
-            <React.Fragment key={year}>
-              <Typography sx={{ pl: 2, pt: 1, fontSize: "0.875rem" }}>
-                {year}
-              </Typography>
-              {months.map((month) => (
-                <MenuItem
-                  key={`${year}-${month}`}
-                  onClick={() => handleValueSelect(`${year} - ${month}`)}
-                >
-                  {month}
-                </MenuItem>
+          {view === "quarter" && (
+            <Grid container spacing={2}>
+              {lastTwoYears.map((year) => (
+                <React.Fragment key={year}>
+                  <Grid item xs={12}>
+                    <Typography variant="h6">{year}</Typography>
+                  </Grid>
+                  {quarters.map((quarter) => (
+                    <Grid item xs={6} key={`${year}-${quarter}`}>
+                      <Box
+                        display="flex"
+                        justifyContent="center"
+                        alignItems="center"
+                        p={2}
+                        border={1}
+                        borderRadius={2}
+                      >
+                        <Typography>{quarter}</Typography>
+                      </Box>
+                    </Grid>
+                  ))}
+                </React.Fragment>
               ))}
-            </React.Fragment>
-          ))}
-      </Menu>
+            </Grid>
+          )}
+
+          {view === "month" && (
+            <Grid container spacing={2}>
+              {lastTwoYears.map((year) => (
+                <React.Fragment key={year}>
+                  <Grid item xs={12}>
+                    <Typography variant="h6">{year}</Typography>
+                  </Grid>
+                  {months.map((month) => (
+                    <Grid item xs={4} key={`${year}-${month}`}>
+                      <Box
+                        display="flex"
+                        justifyContent="center"
+                        alignItems="center"
+                        p={2}
+                        border={1}
+                        borderRadius={2}
+                      >
+                        <Typography>{month}</Typography>
+                      </Box>
+                    </Grid>
+                  ))}
+                </React.Fragment>
+              ))}
+            </Grid>
+          )}
+        </Box>
+      </Popover>
     </Box>
   );
 }
 
-export default CalendarFlyoutMenu;
+export default CalendarBoxView;
