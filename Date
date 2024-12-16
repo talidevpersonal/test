@@ -1,143 +1,138 @@
-import React, { useState } from "react";
-import { Box, Button, ButtonGroup, Grid, Typography, Popover } from "@mui/material";
+// EventEmitter.js
+export class EventEmitter {
+  constructor() {
+    this.events = {};
+  }
 
-function CalendarBoxView() {
-  const [view, setView] = useState("year"); // View can be 'year', 'quarter', or 'month'
-  const [anchorEl, setAnchorEl] = useState(null); // Anchor element for Popover
-  const currentYear = new Date().getFullYear();
-  const lastTwoYears = [currentYear - 1, currentYear];
+  subscribe(event, callback) {
+    if (!this.events[event]) {
+      this.events[event] = [];
+    }
+    this.events[event].push(callback);
+  }
 
-  const months = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-  ];
+  unsubscribe(event, callback) {
+    if (this.events[event]) {
+      this.events[event] = this.events[event].filter(cb => cb !== callback);
+    }
+  }
 
-  const quarters = ["Q1 (Jan-Mar)", "Q2 (Apr-Jun)", "Q3 (Jul-Sep)", "Q4 (Oct-Dec)"];
-
-  const handleButtonClick = (event, newView) => {
-    setView(newView);
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleClose = () => {
-    setAnchorEl(null);
-  };
-
-  const open = Boolean(anchorEl);
-
-  return (
-    <Box p={3}>
-      <Typography variant="h5" gutterBottom>
-        Calendar View
-      </Typography>
-
-      {/* Button Group for View Selection */}
-      <ButtonGroup variant="contained" aria-label="View Selector">
-        <Button onClick={(event) => handleButtonClick(event, "year")}>Year</Button>
-        <Button onClick={(event) => handleButtonClick(event, "quarter")}>Quarter</Button>
-        <Button onClick={(event) => handleButtonClick(event, "month")}>Month</Button>
-      </ButtonGroup>
-
-      {/* Popover to display selected view */}
-      <Popover
-        open={open}
-        anchorEl={anchorEl}
-        onClose={handleClose}
-        anchorOrigin={{
-          vertical: "bottom",
-          horizontal: "left",
-        }}
-        transformOrigin={{
-          vertical: "top",
-          horizontal: "left",
-        }}
-      >
-        <Box p={2}>
-          {/* Display Content Based on Selected View */}
-          {view === "year" && (
-            <Grid container spacing={2}>
-              {lastTwoYears.map((year) => (
-                <Grid item xs={6} key={year}>
-                  <Box
-                    display="flex"
-                    justifyContent="center"
-                    alignItems="center"
-                    p={2}
-                    border={1}
-                    borderRadius={2}
-                  >
-                    <Typography variant="h6">{year}</Typography>
-                  </Box>
-                </Grid>
-              ))}
-            </Grid>
-          )}
-
-          {view === "quarter" && (
-            <Grid container spacing={2}>
-              {lastTwoYears.map((year) => (
-                <React.Fragment key={year}>
-                  <Grid item xs={12}>
-                    <Typography variant="h6">{year}</Typography>
-                  </Grid>
-                  {quarters.map((quarter) => (
-                    <Grid item xs={6} key={`${year}-${quarter}`}>
-                      <Box
-                        display="flex"
-                        justifyContent="center"
-                        alignItems="center"
-                        p={2}
-                        border={1}
-                        borderRadius={2}
-                      >
-                        <Typography>{quarter}</Typography>
-                      </Box>
-                    </Grid>
-                  ))}
-                </React.Fragment>
-              ))}
-            </Grid>
-          )}
-
-          {view === "month" && (
-            <Grid container spacing={2}>
-              {lastTwoYears.map((year) => (
-                <React.Fragment key={year}>
-                  <Grid item xs={12}>
-                    <Typography variant="h6">{year}</Typography>
-                  </Grid>
-                  {months.map((month) => (
-                    <Grid item xs={4} key={`${year}-${month}`}>
-                      <Box
-                        display="flex"
-                        justifyContent="center"
-                        alignItems="center"
-                        p={2}
-                        border={1}
-                        borderRadius={2}
-                      >
-                        <Typography>{month}</Typography>
-                      </Box>
-                    </Grid>
-                  ))}
-                </React.Fragment>
-              ))}
-            </Grid>
-          )}
-        </Box>
-      </Popover>
-    </Box>
-  );
+  publish(event, data) {
+    if (this.events[event]) {
+      this.events[event].forEach(callback => callback(data));
+    }
+  }
 }
 
-export default CalendarBoxView;
+export const eventBus = new EventEmitter();
+
+
+//Usage in react
+
+// Publisher.js
+import { eventBus } from './EventEmitter';
+
+function Publisher() {
+  const handleClick = () => {
+    eventBus.publish('customEvent', 'Hello from Publisher!');
+  };
+
+  return <button onClick={handleClick}>Publish Event</button>;
+}
+
+export default Publisher;
+
+// Publisher.js
+import { eventBus } from './EventEmitter';
+
+function Publisher() {
+  const handleClick = () => {
+    eventBus.publish('customEvent', 'Hello from Publisher!');
+  };
+
+  return <button onClick={handleClick}>Publish Event</button>;
+}
+
+export default Publisher;
+
+
+
+// usage in react context
+import React, { createContext, useContext, useState } from 'react';
+
+const EventBusContext = createContext();
+
+export const EventBusProvider = ({ children }) => {
+  const [events, setEvents] = useState({});
+
+  const publish = (event, data) => {
+    if (events[event]) {
+      events[event].forEach(callback => callback(data));
+    }
+  };
+
+  const subscribe = (event, callback) => {
+    setEvents(prev => ({
+      ...prev,
+      [event]: [...(prev[event] || []), callback],
+    }));
+  };
+
+  const unsubscribe = (event, callback) => {
+    setEvents(prev => ({
+      ...prev,
+      [event]: prev[event]?.filter(cb => cb !== callback) || [],
+    }));
+  };
+
+  return (
+    <EventBusContext.Provider value={{ publish, subscribe, unsubscribe }}>
+      {children}
+    </EventBusContext.Provider>
+  );
+};
+
+export const useEventBus = () => useContext(EventBusContext);
+
+
+// usage in react
+
+// Publisher.js
+import { useEventBus } from './EventBusContext';
+
+function Publisher() {
+  const { publish } = useEventBus();
+
+  const handleClick = () => {
+    publish('customEvent', 'Hello from Publisher!');
+  };
+
+  return <button onClick={handleClick}>Publish Event</button>;
+}
+
+export default Publisher;
+
+// Subscriber.js
+import { useEffect } from 'react';
+import { useEventBus } from './EventBusContext';
+
+function Subscriber() {
+  const { subscribe, unsubscribe } = useEventBus();
+
+  useEffect(() => {
+    const handleEvent = (data) => {
+      console.log(data); // Logs: Hello from Publisher!
+    };
+
+    subscribe('customEvent', handleEvent);
+
+    return () => {
+      unsubscribe('customEvent', handleEvent);
+    };
+  }, [subscribe, unsubscribe]);
+
+  return <div>Subscriber Component</div>;
+}
+
+export default Subscriber;
+
