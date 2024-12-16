@@ -42,18 +42,27 @@ function Publisher() {
 
 export default Publisher;
 
-// Publisher.js
+// Subscriber.js
+import { useEffect } from 'react';
 import { eventBus } from './EventEmitter';
 
-function Publisher() {
-  const handleClick = () => {
-    eventBus.publish('customEvent', 'Hello from Publisher!');
-  };
+function Subscriber() {
+  useEffect(() => {
+    const handleEvent = (data) => {
+      console.log(data); // Logs: Hello from Publisher!
+    };
 
-  return <button onClick={handleClick}>Publish Event</button>;
+    eventBus.subscribe('customEvent', handleEvent);
+
+    return () => {
+      eventBus.unsubscribe('customEvent', handleEvent);
+    };
+  }, []);
+
+  return <div>Subscriber Component</div>;
 }
 
-export default Publisher;
+export default Subscriber;
 
 
 
