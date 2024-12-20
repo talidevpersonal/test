@@ -1,14 +1,7 @@
 import React, { useState } from "react";
-import {
-  Typography,
-  Box,
-  Grid,
-  Paper,
-  IconButton,
-  Collapse,
-} from "@mui/material";
-import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
+import { Typography, Box, Grid, Paper, IconButton, Collapse } from "@mui/material";
 import { ExpandMore, ExpandLess } from "@mui/icons-material";
+import { SortableList, SortableItem } from "react-easy-sort";
 
 const companies = [
   {
@@ -58,13 +51,11 @@ const CompanyList = ({ companies }) => {
   const [columns, setColumns] = useState(initialColumns);
   const [expanded, setExpanded] = useState({});
 
-  const handleDragEnd = (result) => {
-    if (!result.destination) return;
-
-    const reorderedColumns = Array.from(columns);
-    const [moved] = reorderedColumns.splice(result.source.index, 1);
-    reorderedColumns.splice(result.destination.index, 0, moved);
-    setColumns(reorderedColumns);
+  const onSortEnd = (oldIndex, newIndex) => {
+    const updatedColumns = [...columns];
+    const [movedColumn] = updatedColumns.splice(oldIndex, 1);
+    updatedColumns.splice(newIndex, 0, movedColumn);
+    setColumns(updatedColumns);
   };
 
   const toggleExpand = (id) => {
@@ -73,45 +64,27 @@ const CompanyList = ({ companies }) => {
 
   return (
     <Box sx={{ padding: 2 }}>
-      <DragDropContext onDragEnd={handleDragEnd}>
-        <Droppable droppableId="columns" direction="horizontal" type="column">
-          {(provided) => (
-            <Grid
-              container
-              {...provided.droppableProps}
-              ref={provided.innerRef}
-              spacing={2}
-              sx={{ marginBottom: 2 }}
-            >
-              {columns.map((column, index) => (
-                <Draggable key={column.id} draggableId={column.id} index={index}>
-                  {(provided) => (
-                    <Grid
-                      item
-                      xs={column.width}
-                      {...provided.draggableProps}
-                      ref={provided.innerRef}
-                    >
-                      <Paper
-                        elevation={3}
-                        sx={{ padding: 1, textAlign: "center" }}
-                      >
-                        <Typography
-                          {...provided.dragHandleProps}
-                          sx={{ fontWeight: "bold" }}
-                        >
-                          {column.label}
-                        </Typography>
-                      </Paper>
-                    </Grid>
-                  )}
-                </Draggable>
-              ))}
-              {provided.placeholder}
-            </Grid>
-          )}
-        </Droppable>
-      </DragDropContext>
+      <Grid container spacing={2} sx={{ marginBottom: 2 }}>
+        <SortableList
+          onSortEnd={onSortEnd}
+          direction="horizontal"
+          style={{
+            display: "flex",
+            gap: "16px",
+            width: "100%",
+          }}
+        >
+          {columns.map((column, index) => (
+            <SortableItem key={column.id} index={index}>
+              <Grid item xs={column.width} style={{ flex: "1 0 auto" }}>
+                <Paper elevation={3} sx={{ padding: 1, textAlign: "center" }}>
+                  <Typography sx={{ fontWeight: "bold" }}>{column.label}</Typography>
+                </Paper>
+              </Grid>
+            </SortableItem>
+          ))}
+        </SortableList>
+      </Grid>
 
       {companies.map((company) => (
         <Paper elevation={1} sx={{ marginBottom: 2 }} key={company.id}>
