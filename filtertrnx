@@ -1,80 +1,146 @@
-const express = require('express');
-const fs = require('fs');
-const app = express();
-const port = 3000;
+// EventEmitter.js
+export class EventEmitter {
+  constructor() {
+    this.events = {};
+  }
 
-// Read transactions from transaction.json
-let transactions = [];
-try {
-  const data = fs.readFileSync('transaction.json', 'utf-8');
-  transactions = JSON.parse(data);
-} catch (error) {
-  console.error('Error reading transaction.json:', error);
+  subscribe(event, callback) {
+    if (!this.events[event]) {
+      this.events[event] = [];
+    }
+    this.events[event].push(callback);
+  }
+
+  unsubscribe(event, callback) {
+    if (this.events[event]) {
+      this.events[event] = this.events[event].filter(cb => cb !== callback);
+    }
+  }
+
+  publish(event, data) {
+    if (this.events[event]) {
+      this.events[event].forEach(callback => callback(data));
+    }
+  }
 }
 
-// Helper function to filter transactions by date range and compare MTD, QTD, YTD
-const filterAndCompareTransactions = (transactions, period) => {
-  const currentDate = new Date();
+export const eventBus = new EventEmitter();
 
-  // Helper functions to calculate date ranges
-  const getStartOfMonth = (date) => new Date(date.getFullYear(), date.getMonth(), 1);
-  const getStartOfQuarter = (date) => new Date(date.getFullYear(), Math.floor(date.getMonth() / 3) * 3, 1);
-  const getStartOfYear = (date) => new Date(date.getFullYear(), 0, 1);
 
-  let startDate;
-  switch (period) {
-    case 'MTD':
-      startDate = getStartOfMonth(currentDate);
-      break;
-    case 'QTD':
-      startDate = getStartOfQuarter(currentDate);
-      break;
-    case 'YTD':
-      startDate = getStartOfYear(currentDate);
-      break;
-    default:
-      throw new Error('Invalid period');
-  }
+//Usage in react
 
-  // Filter transactions by date range
-  const filteredTransactions = transactions.filter((transaction) => {
-    const transactionDate = new Date(transaction.date);
-    return transactionDate >= startDate && transactionDate <= currentDate;
-  });
+// Publisher.js
+import { eventBus } from './EventEmitter';
 
-  // Aggregate data
-  const aggregated = filteredTransactions.reduce(
-    (acc, transaction) => {
-      acc.TOTAL_TRANSACTION_VALUE += transaction.TOTAL_TRANSACTION_VALUE;
-      acc.TOTAL_TRANSACTION_VOLUME += transaction.TOTAL_TRANSACTION_VOLUME;
-      return acc;
-    },
-    {
-      TOTAL_TRANSACTION_VALUE: 0,
-      TOTAL_TRANSACTION_VOLUME: 0,
-    }
-  );
-
-  return {
-    ...aggregated,
-    period,
-    transactionCount: filteredTransactions.length,
+function Publisher() {
+  const handleClick = () => {
+    eventBus.publish('customEvent', 'Hello from Publisher!');
   };
+
+  return <button onClick={handleClick}>Publish Event</button>;
+}
+
+export default Publisher;
+
+// Subscriber.js
+import { useEffect } from 'react';
+import { eventBus } from './EventEmitter';
+
+function Subscriber() {
+  useEffect(() => {
+    const handleEvent = (data) => {
+      console.log(data); // Logs: Hello from Publisher!
+    };
+
+    eventBus.subscribe('customEvent', handleEvent);
+
+    return () => {
+      eventBus.unsubscribe('customEvent', handleEvent);
+    };
+  }, []);
+
+  return <div>Subscriber Component</div>;
+}
+
+export default Subscriber;
+
+
+
+// usage in react context
+import React, { createContext, useContext, useState } from 'react';
+
+const EventBusContext = createContext();
+
+export const EventBusProvider = ({ children }) => {
+  const [events, setEvents] = useState({});
+
+  const publish = (event, data) => {
+    if (events[event]) {
+      events[event].forEach(callback => callback(data));
+    }
+  };
+
+  const subscribe = (event, callback) => {
+    setEvents(prev => ({
+      ...prev,
+      [event]: [...(prev[event] || []), callback],
+    }));
+  };
+
+  const unsubscribe = (event, callback) => {
+    setEvents(prev => ({
+      ...prev,
+      [event]: prev[event]?.filter(cb => cb !== callback) || [],
+    }));
+  };
+
+  return (
+    <EventBusContext.Provider value={{ publish, subscribe, unsubscribe }}>
+      {children}
+    </EventBusContext.Provider>
+  );
 };
 
-// Define API endpoint
-app.get('/transactions', (req, res) => {
-  const { period } = req.query; // Expect period to be MTD, QTD, or YTD
+export const useEventBus = () => useContext(EventBusContext);
 
-  if (!['MTD', 'QTD', 'YTD'].includes(period)) {
-    return res.status(400).json({ error: 'Invalid period. Use MTD, QTD, or YTD.' });
-  }
 
-  const result = filterAndCompareTransactions(transactions, period);
-  res.json(result);
-});
+// usage in react
 
-// Start server
-app.listen(port, () => {
-  console.log(`Transaction API server running at http://localhost:${port}`);
-});
+// Publisher.js
+import { useEventBus } from './EventBusContext';
+
+function Publisher() {
+  const { publish } = useEventBus();
+
+  const handleClick = () => {
+    publish('customEvent', 'Hello from Publisher!');
+  };
+
+  return <button onClick={handleClick}>Publish Event</button>;
+}
+
+export default Publisher;
+
+// Subscriber.js
+import { useEffect } from 'react';
+import { useEventBus } from './EventBusContext';
+
+function Subscriber() {
+  const { subscribe, unsubscribe } = useEventBus();
+
+  useEffect(() => {
+    const handleEvent = (data) => {
+      console.log(data); // Logs: Hello from Publisher!
+    };
+
+    subscribe('customEvent', handleEvent);
+
+    return () => {
+      unsubscribe('customEvent', handleEvent);
+    };
+  }, [subscribe, unsubscribe]);
+
+  return <div>Subscriber Component</div>;
+}
+
+export default Subscriber;
