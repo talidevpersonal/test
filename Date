@@ -40,7 +40,6 @@ const companies = [
 ];
 
 const initialColumns = [
-  { id: "group", label: "Group/Company", width: 4 },
   { id: "limits", label: "Limits", width: 2 },
   { id: "outstanding", label: "Outstanding", width: 2 },
   { id: "avgBalance", label: "Avg. Balance", width: 2 },
@@ -49,22 +48,34 @@ const initialColumns = [
 
 const CompanyList = ({ companies }) => {
   const [columns, setColumns] = useState(initialColumns);
-  const [expanded, setExpanded] = useState({});
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
-  const onSortEnd = (oldIndex, newIndex) => {
+  const onSortEnd = (oldIndex: number, newIndex: number) => {
     const updatedColumns = [...columns];
     const [movedColumn] = updatedColumns.splice(oldIndex, 1);
     updatedColumns.splice(newIndex, 0, movedColumn);
     setColumns(updatedColumns);
   };
 
-  const toggleExpand = (id) => {
-    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+  const toggleExpand = (id: string) => {
+    setExpanded((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
   };
 
   return (
     <Box sx={{ padding: 2 }}>
+      {/* Header Row */}
       <Grid container spacing={2} sx={{ marginBottom: 2 }}>
+        {/* Static Company/Group Column */}
+        <Grid item xs={4}>
+          <Paper elevation={3} sx={{ padding: 1, textAlign: "center" }}>
+            <Typography sx={{ fontWeight: "bold" }}>Group/Company</Typography>
+          </Paper>
+        </Grid>
+
+        {/* Sortable Columns */}
         <SortableList
           onSortEnd={onSortEnd}
           direction="horizontal"
@@ -86,29 +97,26 @@ const CompanyList = ({ companies }) => {
         </SortableList>
       </Grid>
 
+      {/* Company Rows */}
       {companies.map((company) => (
         <Paper elevation={1} sx={{ marginBottom: 2 }} key={company.id}>
           <Box sx={{ padding: 2 }}>
             <Grid container alignItems="center" spacing={2}>
+              {/* Static Company/Group Column */}
+              <Grid item xs={4}>
+                <Box display="flex" alignItems="center">
+                  {company.children.length > 0 && (
+                    <IconButton size="small" onClick={() => toggleExpand(company.id)}>
+                      {expanded[company.id] ? <ExpandLess /> : <ExpandMore />}
+                    </IconButton>
+                  )}
+                  <Typography variant="body1">{company.name}</Typography>
+                </Box>
+              </Grid>
+
+              {/* Sortable Columns */}
               {columns.map((column) => (
                 <Grid item xs={column.width} key={column.id}>
-                  {column.id === "group" && (
-                    <Box display="flex" alignItems="center">
-                      {company.children.length > 0 && (
-                        <IconButton
-                          size="small"
-                          onClick={() => toggleExpand(company.id)}
-                        >
-                          {expanded[company.id] ? (
-                            <ExpandLess />
-                          ) : (
-                            <ExpandMore />
-                          )}
-                        </IconButton>
-                      )}
-                      <Typography variant="body1">{company.name}</Typography>
-                    </Box>
-                  )}
                   {column.id === "limits" && (
                     <Typography variant="body2">{company.limits}</Typography>
                   )}
@@ -142,11 +150,14 @@ const CompanyList = ({ companies }) => {
               <Box sx={{ paddingLeft: 4, paddingBottom: 2 }}>
                 {company.children.map((child) => (
                   <Grid container key={child.id} sx={{ paddingBottom: 1 }}>
+                    {/* Static Company/Group Column */}
+                    <Grid item xs={4}>
+                      <Typography variant="body2">• {child.name}</Typography>
+                    </Grid>
+
+                    {/* Sortable Columns */}
                     {columns.map((column) => (
                       <Grid item xs={column.width} key={column.id}>
-                        {column.id === "group" && (
-                          <Typography variant="body2">• {child.name}</Typography>
-                        )}
                         {column.id === "limits" && (
                           <Typography variant="body2">{child.limits}</Typography>
                         )}
@@ -156,9 +167,7 @@ const CompanyList = ({ companies }) => {
                             <Typography
                               component="span"
                               color={
-                                child.percentage.includes("-")
-                                  ? "error"
-                                  : "green"
+                                child.percentage.includes("-") ? "error" : "green"
                               }
                             >
                               {child.percentage}
