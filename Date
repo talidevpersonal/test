@@ -1,202 +1,110 @@
-import React, { useState } from "react";
-import { Typography, Box, Grid, Paper, IconButton, Collapse } from "@mui/material";
-import { ExpandMore, ExpandLess } from "@mui/icons-material";
-import { SortableList, SortableItem } from "react-easy-sort";
+import { configureStore } from "@reduxjs/toolkit";
+import productsReducer from "./features/productsSlice";
 
-const companies = [
-  {
-    id: 1,
-    name: "DP World",
-    groupId: "891238914",
-    limits: "AED 23.25M",
-    outstanding: "AED 23.25M",
-    avgBalance: "AED 23.25M",
-    netRevenue: "AED 23.25M",
-    percentage: "+2%",
-    children: [],
+const store = configureStore({
+  reducer: {
+    products: productsReducer,
   },
-  {
-    id: 2,
-    name: "Dubai Electricity and Water Authority",
-    groupId: "891238914",
-    limits: "AED 23.25M",
-    outstanding: "AED 23.25M",
-    avgBalance: "AED 23.25M",
-    netRevenue: "AED 23.25M",
-    percentage: "-5%",
-    children: [
-      {
-        id: "2-1",
-        name: "Etihad Energy Services Company",
-        groupId: "891238914",
-        limits: "AED 23.25M",
-        outstanding: "AED 23.25M",
-        avgBalance: "AED 23.25M",
-        netRevenue: "AED 23.25M",
-        percentage: "-5%",
-      },
-    ],
+});
+
+export default store;
+
+
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import axios from "axios";
+
+// Async Thunk to fetch products
+export const fetchProducts = createAsyncThunk(
+  "products/fetchProducts",
+  async () => {
+    const response = await axios.get("https://fakestoreapi.com/products");
+    return response.data;
+  }
+);
+
+const productsSlice = createSlice({
+  name: "products",
+  initialState: {
+    items: [],
+    loading: false,
+    error: null,
   },
-];
+  reducers: {},
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchProducts.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(fetchProducts.fulfilled, (state, action) => {
+        state.loading = false;
+        state.items = action.payload;
+      })
+      .addCase(fetchProducts.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message;
+      });
+  },
+});
 
-const initialColumns = [
-  { id: "limits", label: "Limits", width: 2 },
-  { id: "outstanding", label: "Outstanding", width: 2 },
-  { id: "avgBalance", label: "Avg. Balance", width: 2 },
-  { id: "netRevenue", label: "Net Revenue", width: 2 },
-];
+export default productsSlice.reducer;
 
-const CompanyList = ({ companies }) => {
-  const [columns, setColumns] = useState(initialColumns);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+import React from "react";
+import ReactDOM from "react-dom";
+import { Provider } from "react-redux";
+import store from "./store";
+import App from "./App";
 
-  const onSortEnd = (oldIndex: number, newIndex: number) => {
-    const updatedColumns = [...columns];
-    const [movedColumn] = updatedColumns.splice(oldIndex, 1);
-    updatedColumns.splice(newIndex, 0, movedColumn);
-    setColumns(updatedColumns);
-  };
+ReactDOM.render(
+  <Provider store={store}>
+    <App />
+  </Provider>,
+  document.getElementById("root")
+);
 
-  const toggleExpand = (id: string) => {
-    setExpanded((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
-  };
+import React, { useEffect } from "react";
+import { useSelector, useDispatch } from "react-redux";
+import { fetchProducts } from "./features/productsSlice";
+import { CircularProgress, Box, Grid, Typography, Card, CardContent } from "@mui/material";
+
+const ProductList = () => {
+  const dispatch = useDispatch();
+
+  // Get products and loading state from the Redux store
+  const { items, loading, error } = useSelector((state) => state.products);
+
+  useEffect(() => {
+    // Dispatch the action to fetch products
+    dispatch(fetchProducts());
+  }, [dispatch]);
+
+  if (loading) {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", marginTop: 5 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error) {
+    return <Typography color="error">Error: {error}</Typography>;
+  }
 
   return (
-    <Box sx={{ padding: 2 }}>
-      {/* Header Row */}
-      <Grid container spacing={2} sx={{ marginBottom: 2 }}>
-        {/* Static Company/Group Column */}
-        <Grid item xs={4}>
-          <Paper elevation={3} sx={{ padding: 1, textAlign: "center" }}>
-            <Typography sx={{ fontWeight: "bold" }}>Group/Company</Typography>
-          </Paper>
+    <Grid container spacing={3} sx={{ padding: 2 }}>
+      {items.map((product) => (
+        <Grid item xs={12} sm={6} md={4} lg={3} key={product.id}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6">{product.title}</Typography>
+              <Typography variant="body2" color="textSecondary">
+                ${product.price}
+              </Typography>
+            </CardContent>
+          </Card>
         </Grid>
-
-        {/* Sortable Columns */}
-        <SortableList
-          onSortEnd={onSortEnd}
-          direction="horizontal"
-          style={{
-            display: "flex",
-            gap: "16px",
-            width: "100%",
-          }}
-        >
-          {columns.map((column, index) => (
-            <SortableItem key={column.id} index={index}>
-              <Grid item xs={column.width} style={{ flex: "1 0 auto" }}>
-                <Paper elevation={3} sx={{ padding: 1, textAlign: "center" }}>
-                  <Typography sx={{ fontWeight: "bold" }}>{column.label}</Typography>
-                </Paper>
-              </Grid>
-            </SortableItem>
-          ))}
-        </SortableList>
-      </Grid>
-
-      {/* Company Rows */}
-      {companies.map((company) => (
-        <Paper elevation={1} sx={{ marginBottom: 2 }} key={company.id}>
-          <Box sx={{ padding: 2 }}>
-            <Grid container alignItems="center" spacing={2}>
-              {/* Static Company/Group Column */}
-              <Grid item xs={4}>
-                <Box display="flex" alignItems="center">
-                  {company.children.length > 0 && (
-                    <IconButton size="small" onClick={() => toggleExpand(company.id)}>
-                      {expanded[company.id] ? <ExpandLess /> : <ExpandMore />}
-                    </IconButton>
-                  )}
-                  <Typography variant="body1">{company.name}</Typography>
-                </Box>
-              </Grid>
-
-              {/* Sortable Columns */}
-              {columns.map((column) => (
-                <Grid item xs={column.width} key={column.id}>
-                  {column.id === "limits" && (
-                    <Typography variant="body2">{company.limits}</Typography>
-                  )}
-                  {column.id === "outstanding" && (
-                    <Typography variant="body2">
-                      {company.outstanding}{" "}
-                      <Typography
-                        component="span"
-                        color={
-                          company.percentage.includes("-") ? "error" : "green"
-                        }
-                      >
-                        {company.percentage}
-                      </Typography>
-                    </Typography>
-                  )}
-                  {column.id === "avgBalance" && (
-                    <Typography variant="body2">{company.avgBalance}</Typography>
-                  )}
-                  {column.id === "netRevenue" && (
-                    <Typography variant="body2">{company.netRevenue}</Typography>
-                  )}
-                </Grid>
-              ))}
-            </Grid>
-          </Box>
-
-          {/* Child Companies */}
-          {company.children.length > 0 && (
-            <Collapse in={expanded[company.id]} timeout="auto" unmountOnExit>
-              <Box sx={{ paddingLeft: 4, paddingBottom: 2 }}>
-                {company.children.map((child) => (
-                  <Grid container key={child.id} sx={{ paddingBottom: 1 }}>
-                    {/* Static Company/Group Column */}
-                    <Grid item xs={4}>
-                      <Typography variant="body2">• {child.name}</Typography>
-                    </Grid>
-
-                    {/* Sortable Columns */}
-                    {columns.map((column) => (
-                      <Grid item xs={column.width} key={column.id}>
-                        {column.id === "limits" && (
-                          <Typography variant="body2">{child.limits}</Typography>
-                        )}
-                        {column.id === "outstanding" && (
-                          <Typography variant="body2">
-                            {child.outstanding}{" "}
-                            <Typography
-                              component="span"
-                              color={
-                                child.percentage.includes("-") ? "error" : "green"
-                              }
-                            >
-                              {child.percentage}
-                            </Typography>
-                          </Typography>
-                        )}
-                        {column.id === "avgBalance" && (
-                          <Typography variant="body2">
-                            {child.avgBalance}
-                          </Typography>
-                        )}
-                        {column.id === "netRevenue" && (
-                          <Typography variant="body2">
-                            {child.netRevenue}
-                          </Typography>
-                        )}
-                      </Grid>
-                    ))}
-                  </Grid>
-                ))}
-              </Box>
-            </Collapse>
-          )}
-        </Paper>
       ))}
-    </Box>
+    </Grid>
   );
 };
 
-const App = () => <CompanyList companies={companies} />;
-
-export default App;
+export default ProductList;
