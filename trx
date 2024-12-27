@@ -1,9 +1,5 @@
 import React, { useState } from "react";
-import { Autocomplete, TextField, Box, Popper } from "@mui/material";
-
-const CustomPopper = (props) => {
-  return <Popper {...props} placement="bottom-start" />;
-};
+import { Autocomplete, TextField, Box } from "@mui/material";
 
 const SearchableDropdown = () => {
   const [value, setValue] = useState(null);
@@ -28,28 +24,11 @@ const SearchableDropdown = () => {
         onChange={(event, newValue) => setValue(newValue)}
         inputValue={inputValue}
         onInputChange={(event, newInputValue) => setInputValue(newInputValue)}
-        PopperComponent={CustomPopper}
+        openOnFocus // Ensure dropdown opens on focus
+        disableCloseOnSelect // Dropdown stays open after selecting an option
         renderInput={(params) => (
-          <TextField {...params} sx={{ display: "none" }} />
+          <TextField {...params} label="Search Options" variant="outlined" />
         )}
-        renderOption={(props, option) => (
-          <li {...props}>{option.label}</li>
-        )}
-        slotProps={{
-          paper: {
-            sx: { padding: "8px" }, // Customize the dropdown container
-            children: (
-              <TextField
-                size="small"
-                placeholder="Search..."
-                fullWidth
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                sx={{ marginBottom: 1, background: "white" }}
-              />
-            ),
-          },
-        }}
       />
     </Box>
   );
