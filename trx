@@ -28,30 +28,16 @@ const SearchableDropdown = () => {
         onChange={(event, newValue) => setValue(newValue)}
         inputValue={inputValue}
         onInputChange={(event, newInputValue) => setInputValue(newInputValue)}
-        PopperComponent={CustomPopper} // Custom popper for dropdown placement
+        PopperComponent={CustomPopper}
         renderInput={(params) => (
           <TextField {...params} sx={{ display: "none" }} />
         )}
         renderOption={(props, option) => (
           <li {...props}>{option.label}</li>
         )}
-        ListboxProps={{
-          sx: {
-            position: "relative",
-            "&::before": {
-              content: '""',
-              display: "block",
-              position: "sticky",
-              top: 0,
-              background: "white",
-              zIndex: 1,
-              padding: "8px",
-              borderBottom: "1px solid #ddd",
-            },
-          },
-        }}
-        componentsProps={{
+        slotProps={{
           paper: {
+            sx: { padding: "8px" }, // Customize the dropdown container
             children: (
               <TextField
                 size="small"
