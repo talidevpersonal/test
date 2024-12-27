@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Autocomplete, TextField } from "@mui/material";
+import { Autocomplete, TextField, Box } from "@mui/material";
 
 const SearchableDropdown = () => {
   const [value, setValue] = useState(null);
@@ -13,17 +13,24 @@ const SearchableDropdown = () => {
   ];
 
   return (
-    <Autocomplete
-      options={options} // Array of options
-      getOptionLabel={(option) => option.label} // Define how options are displayed
-      value={value} // Selected value
-      onChange={(event, newValue) => setValue(newValue)} // Handle value change
-      renderInput={(params) => (
-        <TextField {...params} label="Searchable Dropdown" variant="outlined" />
-      )}
-      isOptionEqualToValue={(option, value) => option.id === value?.id} // Handle equality check
-    />
-  );
-};
-
-export default SearchableDropdown;
+    <Box sx={{ width: 300 }}>
+      <Autocomplete
+        options={options}
+        getOptionLabel={(option) => option.label}
+        value={value}
+        onChange={(event, newValue) => setValue(newValue)}
+        renderInput={(params) => (
+          <TextField {...params} label="Select an Option" variant="outlined" />
+        )}
+        renderOption={(props, option, { inputValue }) => {
+          const matchesSearch = option.label
+            .toLowerCase()
+            .includes(inputValue.toLowerCase());
+          return matchesSearch ? <li {...props}>{option.label}</li> : null;
+        }}
+        popupIcon={null} // Removes default dropdown arrow
+        disableCloseOnSelect
+        renderTags={() => null} // Removes tag display
+        openOnFocus // Dropdown opens when focused
+        inputValue="" // Removes user- Uncursor
+   
