@@ -1,70 +1,29 @@
-const fs = require('fs');
-const csv = require('fast-csv');
+import React, { useState } from "react";
+import { Autocomplete, TextField } from "@mui/material";
 
-// Define categories for sample data
-const categories = ['Revenue', 'Balances', 'Outstanding', 'Limits'];
+const SearchableDropdown = () => {
+  const [value, setValue] = useState(null);
 
+  // Example options
+  const options = [
+    { label: "Option 1", id: 1 },
+    { label: "Option 2", id: 2 },
+    { label: "Option 3", id: 3 },
+    { label: "Option 4", id: 4 },
+  ];
 
-// Groups and products definition
-const groups = ['Group1', 'Group2', 'Group3'];
-const products = [
-  { CASH: ['CASA', 'PAYMENTS', 'COLLECTIONS'] },
-  { FD: ['FD', 'RD'] },
-  { LENDING: ['CORE LENDING', 'TRADE LOAN', 'OD', 'OTHER LOANS'] },
-  { TRADE: ['EXPORTS', 'IMPORTS', 'GUARANTEES', 'RECEIVABLES FINANCING', 'STF', 'SCF'] },
-  { TREASURY: ['DERIVATIVES', 'FORWARD', 'FX', 'SWAP'] },
-  { EMCAP: ['DEBT EQUITY'] },
-];
-
-// Helper function to generate random data
-const getRandomNumber = (min, max) => {
-  return parseFloat((Math.random() * (max - min) + min).toFixed(2));
+  return (
+    <Autocomplete
+      options={options} // Array of options
+      getOptionLabel={(option) => option.label} // Define how options are displayed
+      value={value} // Selected value
+      onChange={(event, newValue) => setValue(newValue)} // Handle value change
+      renderInput={(params) => (
+        <TextField {...params} label="Searchable Dropdown" variant="outlined" />
+      )}
+      isOptionEqualToValue={(option, value) => option.id === value?.id} // Handle equality check
+    />
+  );
 };
 
-// Function to generate transaction data
-const generateTransactionData = () => {
-  const transactions = [];
-
-  groups.forEach((group) => {
-    products.forEach((product) => {
-      const [productKey, subProducts] = Object.entries(product)[0];
-
-      subProducts.forEach((subProduct) => {
-        transactions.push({
-          FK_PRODUCT_ID: `${productKey}-${subProduct}`,
-          FK_GROUP_ID: group,
-          AVERAGE_BALANCE: getRandomNumber(1000, 5000),
-          EOP_BALANCE: getRandomNumber(500, 2000),
-          CREDIT_VALUE: getRandomNumber(100, 1000),
-          CREDIT_VOLUME: getRandomNumber(10, 100),
-          DEBIT_VALUE: getRandomNumber(100, 1000),
-          DEBIT_VOLUME: getRandomNumber(10, 100),
-          TOTAL_VALUE: getRandomNumber(2000, 8000),
-          TOTAL_VOLUME: getRandomNumber(50, 200),
-          SUB_SUB_PRODUCT_COVERAGE: getRandomNumber(1, 100),
-          FD_BALANCE: getRandomNumber(1000, 5000),
-          OUTSTANDING: getRandomNumber(500, 2000),
-          UTILIZATION_Percent: getRandomNumber(0, 100),
-          LIMITS: getRandomNumber(1000, 10000),
-          TOTAL_TRANSACTION_VALUE: getRandomNumber(2000, 10000),
-          TOTAL_TRANSACTION_VOLUME: getRandomNumber(100, 500),
-          NII_REVENUE: getRandomNumber(100, 1000),
-          NFI_REVENUE: getRandomNumber(50, 500),
-          TURNOVER: getRandomNumber(1000, 5000),
-          NO_OF_TRADESS: Math.floor(getRandomNumber(1, 100)),
-          AVG_MARGIN: getRandomNumber(1, 10),
-          FEES: getRandomNumber(10, 100),
-          COMMISION: getRandomNumber(5, 50),
-          NET_REVENUE: getRandomNumber(100, 1000),
-        });
-      });
-    });
-  });
-
-  return transactions;
-};
-
-const transactions = generateTransactionData();
-
-fs.writeFileSync('transaction.json', JSON.stringify(transactions, null, 2));
-console.log('Transaction data written to transaction.json');
+export default SearchableDropdown;
