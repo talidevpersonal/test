@@ -1,11 +1,14 @@
 import React, { useState } from "react";
-import { Autocomplete, TextField, Box } from "@mui/material";
+import { Autocomplete, TextField, Box, Popper } from "@mui/material";
+
+const CustomPopper = (props) => {
+  return <Popper {...props} placement="bottom-start" />;
+};
 
 const SearchableDropdown = () => {
   const [value, setValue] = useState(null);
   const [inputValue, setInputValue] = useState("");
 
-  // Example options
   const options = [
     { label: "Option 1", id: 1 },
     { label: "Option 2", id: 2 },
@@ -15,7 +18,7 @@ const SearchableDropdown = () => {
 
   return (
     <Box sx={{ width: 300 }}>
-      {/* Label above the dropdown */}
+      {/* Label above dropdown */}
       <Box sx={{ mb: 1, fontWeight: 500 }}>Select an Option</Box>
 
       <Autocomplete
@@ -25,8 +28,8 @@ const SearchableDropdown = () => {
         onChange={(event, newValue) => setValue(newValue)}
         inputValue={inputValue}
         onInputChange={(event, newInputValue) => setInputValue(newInputValue)}
+        PopperComponent={CustomPopper} // Custom popper for dropdown placement
         renderInput={(params) => (
-          // Render empty TextField to hide default input box
           <TextField {...params} sx={{ display: "none" }} />
         )}
         renderOption={(props, option) => (
@@ -34,10 +37,36 @@ const SearchableDropdown = () => {
         )}
         ListboxProps={{
           sx: {
-            "& li": {
-              fontSize: 14,
+            position: "relative",
+            "&::before": {
+              content: '""',
+              display: "block",
+              position: "sticky",
+              top: 0,
+              background: "white",
+              zIndex: 1,
+              padding: "8px",
+              borderBottom: "1px solid #ddd",
             },
           },
         }}
-        PopperComponent={({ children, anchorEl, disablePortal, ...props }) => (
-          <div
+        componentsProps={{
+          paper: {
+            children: (
+              <TextField
+                size="small"
+                placeholder="Search..."
+                fullWidth
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                sx={{ marginBottom: 1, background: "white" }}
+              />
+            ),
+          },
+        }}
+      />
+    </Box>
+  );
+};
+
+export default SearchableDropdown;
