@@ -3,6 +3,7 @@ import { Autocomplete, TextField, Box } from "@mui/material";
 
 const SearchableDropdown = () => {
   const [value, setValue] = useState(null);
+  const [inputValue, setInputValue] = useState("");
 
   // Example options
   const options = [
@@ -14,23 +15,29 @@ const SearchableDropdown = () => {
 
   return (
     <Box sx={{ width: 300 }}>
+      {/* Label above the dropdown */}
+      <Box sx={{ mb: 1, fontWeight: 500 }}>Select an Option</Box>
+
       <Autocomplete
         options={options}
         getOptionLabel={(option) => option.label}
         value={value}
         onChange={(event, newValue) => setValue(newValue)}
+        inputValue={inputValue}
+        onInputChange={(event, newInputValue) => setInputValue(newInputValue)}
         renderInput={(params) => (
-          <TextField {...params} label="Select an Option" variant="outlined" />
+          // Render empty TextField to hide default input box
+          <TextField {...params} sx={{ display: "none" }} />
         )}
-        renderOption={(props, option, { inputValue }) => {
-          const matchesSearch = option.label
-            .toLowerCase()
-            .includes(inputValue.toLowerCase());
-          return matchesSearch ? <li {...props}>{option.label}</li> : null;
+        renderOption={(props, option) => (
+          <li {...props}>{option.label}</li>
+        )}
+        ListboxProps={{
+          sx: {
+            "& li": {
+              fontSize: 14,
+            },
+          },
         }}
-        popupIcon={null} // Removes default dropdown arrow
-        disableCloseOnSelect
-        renderTags={() => null} // Removes tag display
-        openOnFocus // Dropdown opens when focused
-        inputValue="" // Removes user- Uncursor
-   
+        PopperComponent={({ children, anchorEl, disablePortal, ...props }) => (
+          <div
