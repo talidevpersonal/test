@@ -1,55 +1,62 @@
-import React from "react";
-import { writeToString } from "fast-csv";
-import { saveAs } from "file-saver";
+import React, { useState } from "react";
+import { Box, Typography, List, ListItem, ListItemText } from "@mui/material";
+import { LocalizationProvider } from "@mui/x-date-pickers";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import { StaticDatePicker } from "@mui/x-date-pickers/StaticDatePicker";
+import dayjs from "dayjs";
 
-const ExportCSV = () => {
-  // Example data
-  const data = [
-    { id: 1, name: "John Doe", email: "john.doe@example.com", age: 28 },
-    { id: 2, name: "Jane Smith", email: "jane.smith@example.com", age: 34 },
-    { id: 3, name: "Sam Green", email: "sam.green@example.com", age: 23 },
+const Calendar = () => {
+  const [selectedDate, setSelectedDate] = useState(dayjs());
+  const meetings = [
+    { id: 1, title: "MAF - Teams meeting", time: "09:00 AM", date: "2024-12-21" },
+    {
+      id: 2,
+      title: "Emirates Airlines - In-person",
+      time: "12:00 PM",
+      date: "2024-12-21",
+    },
   ];
 
-  // Columns for the CSV file
-  const columns = [
-    { header: "ID", key: "id" },
-    { header: "Name", key: "name" },
-    { header: "Email", key: "email" },
-    { header: "Age", key: "age" },
-  ];
-
-  const exportToCSV = () => {
-    // Create CSV string using fast-csv
-    writeToString(data, { headers: true })
-      .then((csvString) => {
-        // Create a Blob from the CSV string
-        const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
-
-        // Save the file using FileSaver
-        saveAs(blob, "exported_data.csv");
-      })
-      .catch((error) => console.error("Error generating CSV:", error));
-  };
+  const weeklyMeetings = meetings.filter(
+    (meeting) =>
+      dayjs(meeting.date).isAfter(selectedDate.startOf("week")) &&
+      dayjs(meeting.date).isBefore(selectedDate.endOf("week"))
+  );
 
   return (
-    <div style={{ padding: "20px" }}>
-      <h3>Export Data to CSV</h3>
-      <button
-        onClick={exportToCSV}
-        style={{
-          padding: "10px 20px",
-          fontSize: "16px",
-          cursor: "pointer",
-          backgroundColor: "#4CAF50",
-          color: "white",
-          border: "none",
-          borderRadius: "4px",
-        }}
-      >
-        Export CSV
-      </button>
-    </div>
+    <LocalizationProvider dateAdapter={AdapterDayjs}>
+      <Box display="flex" flexDirection="column" alignItems="center" p={2}>
+        <Typography variant="h5" gutterBottom>
+          Weekly Calendar View
+        </Typography>
+        <StaticDatePicker
+          displayStaticWrapperAs="desktop"
+          views={["day"]}
+          value={selectedDate}
+          onChange={(newValue) => setSelectedDate(newValue)}
+        />
+        <Box mt={3}>
+          <Typography variant="h6">Meetings This Week:</Typography>
+          <List>
+            {weeklyMeetings.length ? (
+              weeklyMeetings.map((meeting) => (
+                <ListItem key={meeting.id}>
+                  <ListItemText
+                    primary={meeting.title}
+                    secondary={`${meeting.time} on ${dayjs(meeting.date).format(
+                      "MMMM D, YYYY"
+                    )}`}
+                  />
+                </ListItem>
+              ))
+            ) : (
+              <Typography>No meetings scheduled.</Typography>
+            )}
+          </List>
+        </Box>
+      </Box>
+    </LocalizationProvider>
   );
 };
 
-export default ExportCSV;
+export default Calendar;
