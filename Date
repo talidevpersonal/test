@@ -11,7 +11,7 @@ const Calendar = () => {
     { id: 1, title: "MAF - Teams meeting", time: "09:00 AM", date: "2024-12-21" },
     {
       id: 2,
-      title: "Emirates Airlines - In-person",
+      title: "My meeting - In-person",
       time: "12:00 PM",
       date: "2024-12-21",
     },
