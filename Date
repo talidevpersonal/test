@@ -1,85 +1,51 @@
 import React, { useState } from "react";
-import { Box, Typography, Button, List, ListItem, ListItemText } from "@mui/material";
+import { Box, Typography, Button } from "@mui/material";
+import { LocalizationProvider, DatePicker } from "@mui/x-date-pickers";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
 
-const Calendar = () => {
-  const [currentWeek, setCurrentWeek] = useState(dayjs().startOf("week"));
+const CalendarWithDatePicker = () => {
+  const [selectedDate, setSelectedDate] = useState(dayjs());
+  const [isDatePickerOpen, setDatePickerOpen] = useState(false);
 
-  const meetings = [
-    { id: 1, title: "MAF - Teams meeting", time: "09:00 AM", date: "2024-12-21" },
-    { id: 2, title: "Emirates Airlines - In-person", time: "12:00 PM", date: "2024-12-21" },
-  ];
-
-  // Generate the dates for the current week (Monday to Sunday)
-  const weekDates = Array.from({ length: 7 }).map((_, index) =>
-    currentWeek.add(index, "day")
-  );
-
-  // Filter meetings for the current week
-  const weeklyMeetings = meetings.filter((meeting) =>
-    weekDates.some((date) => dayjs(meeting.date).isSame(date, "day"))
-  );
-
-  const handleNextWeek = () => setCurrentWeek(currentWeek.add(1, "week"));
-  const handlePreviousWeek = () => setCurrentWeek(currentWeek.subtract(1, "week"));
+  const handleDateChange = (newDate) => {
+    setSelectedDate(newDate);
+    setDatePickerOpen(false); // Close the date picker after selection
+  };
 
   return (
-    <Box p={2} maxWidth={600} mx="auto">
-      {/* Week Selector */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-        <Button variant="outlined" onClick={handlePreviousWeek}>
-          Previous
-        </Button>
-        <Typography variant="h6">
-          {currentWeek.format("MMMM D")} - {currentWeek.add(6, "days").format("MMMM D, YYYY")}
-        </Typography>
-        <Button variant="outlined" onClick={handleNextWeek}>
-          Next
-        </Button>
-      </Box>
+    <LocalizationProvider dateAdapter={AdapterDayjs}>
+      <Box p={2} maxWidth={400} mx="auto">
+        {/* Date Label */}
+        <Box
+          display="flex"
+          justifyContent="center"
+          alignItems="center"
+          mb={3}
+          onClick={() => setDatePickerOpen(true)} // Open date picker on click
+          sx={{ cursor: "pointer", border: "1px solid", borderColor: "grey.300", borderRadius: 2, padding: 2 }}
+        >
+          <Typography variant="h6">{selectedDate.format("MMMM D, YYYY")}</Typography>
+        </Box>
 
-      {/* Horizontal Weekly Date View */}
-      <Box display="flex" justifyContent="space-around" mb={3}>
-        {weekDates.map((date) => (
-          <Box
-            key={date.format("YYYY-MM-DD")}
-            textAlign="center"
-            p={1}
-            borderRadius={1}
-            bgcolor={dayjs().isSame(date, "day") ? "primary.light" : "grey.200"}
-          >
-            <Typography variant="body2">{date.format("ddd")}</Typography>
-            <Typography variant="h6">{date.format("D")}</Typography>
-          </Box>
-        ))}
-      </Box>
+        {/* Date Picker */}
+        {isDatePickerOpen && (
+          <DatePicker
+            open
+            value={selectedDate}
+            onChange={handleDateChange}
+            onClose={() => setDatePickerOpen(false)} // Close on clicking outside
+            renderInput={() => null} // Hides the default input field
+          />
+        )}
 
-      {/* Time Slot View */}
-      <Box border={1} borderColor="grey.300" borderRadius={2} p={2}>
-        {Array.from({ length: 9 }).map((_, index) => {
-          const timeSlot = dayjs().startOf("day").add(9 + index, "hour").format("hh:00 A");
-          const meeting = weeklyMeetings.find((m) => m.time === timeSlot);
-
-          return (
-            <Box
-              key={timeSlot}
-              display="flex"
-              justifyContent="space-between"
-              alignItems="center"
-              borderBottom={index < 8 ? 1 : 0}
-              borderColor="grey.200"
-              py={1}
-            >
-              <Typography variant="body2">{timeSlot}</Typography>
-              <Typography variant="body2" color={meeting ? "primary" : "textSecondary"}>
-                {meeting ? meeting.title : ""}
-              </Typography>
-            </Box>
-          );
-        })}
+        {/* Content Below */}
+        <Box>
+          <Typography variant="body1">Selected Date: {selectedDate.format("MMMM D, YYYY")}</Typography>
+        </Box>
       </Box>
-    </Box>
+    </LocalizationProvider>
   );
 };
 
-export default Calendar;
+export default CalendarWithDatePicker;
