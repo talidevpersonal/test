@@ -1,51 +1,67 @@
-import React, { useState } from "react";
-import { Box, Typography, Button } from "@mui/material";
-import { LocalizationProvider, DatePicker } from "@mui/x-date-pickers";
-import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
-import dayjs from "dayjs";
+import React from "react";
+import { Box, Typography, Accordion, AccordionSummary, AccordionDetails, Switch, Button } from "@mui/material";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 
-const CalendarWithDatePicker = () => {
-  const [selectedDate, setSelectedDate] = useState(dayjs());
-  const [isDatePickerOpen, setDatePickerOpen] = useState(false);
+const meetings = [
+  { id: 1, time: "09:45", title: "MAF - Teams meeting", needsCallReport: true },
+  { id: 2, time: "13:00", title: "Emirates Airlines - In-person meeting", needsCallReport: false },
+];
 
-  const handleDateChange = (newDate) => {
-    setSelectedDate(newDate);
-    setDatePickerOpen(false); // Close the date picker after selection
-  };
+// Function to convert time to a relative top position
+const calculatePosition = (time) => {
+  const [hours, minutes] = time.split(":").map(Number);
+  return hours * 60 + minutes; // Minutes from midnight
+};
 
+const Calendar = () => {
   return (
-    <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <Box p={2} maxWidth={400} mx="auto">
-        {/* Date Label */}
-        <Box
-          display="flex"
-          justifyContent="center"
-          alignItems="center"
-          mb={3}
-          onClick={() => setDatePickerOpen(true)} // Open date picker on click
-          sx={{ cursor: "pointer", border: "1px solid", borderColor: "grey.300", borderRadius: 2, padding: 2 }}
-        >
-          <Typography variant="h6">{selectedDate.format("MMMM D, YYYY")}</Typography>
-        </Box>
+    <Box sx={{ position: "relative", width: "100%", maxWidth: 600, mx: "auto", mt: 3 }}>
+      {/* Calendar Header */}
+      <Typography variant="h6" textAlign="center">
+        December 2024
+      </Typography>
 
-        {/* Date Picker */}
-        {isDatePickerOpen && (
-          <DatePicker
-            open
-            value={selectedDate}
-            onChange={handleDateChange}
-            onClose={() => setDatePickerOpen(false)} // Close on clicking outside
-            renderInput={() => null} // Hides the default input field
-          />
-        )}
+      <Box sx={{ display: "grid", gridTemplateColumns: "1fr", gap: 2, position: "relative" }}>
+        {/* Timeslot Indicators */}
+        {Array.from({ length: 24 }, (_, i) => (
+          <Box key={i} sx={{ position: "relative", height: "60px", borderBottom: "1px solid #ddd" }}>
+            <Typography variant="body2" sx={{ position: "absolute", left: -40, top: 10 }}>
+              {`${i.toString().padStart(2, "0")}:00`}
+            </Typography>
+          </Box>
+        ))}
 
-        {/* Content Below */}
-        <Box>
-          <Typography variant="body1">Selected Date: {selectedDate.format("MMMM D, YYYY")}</Typography>
-        </Box>
+        {/* Meeting Panels */}
+        {meetings.map((meeting) => (
+          <Accordion
+            key={meeting.id}
+            sx={{
+              position: "absolute",
+              top: calculatePosition(meeting.time) + "px",
+              left: "0",
+              width: "100%",
+              zIndex: 2,
+            }}
+          >
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <Typography>{meeting.title}</Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <Switch checked={meeting.needsCallReport} />
+                  <Typography>Needs call report</Typography>
+                </Box>
+                <Button variant="outlined" startIcon={<ExpandMoreIcon />}>
+                  + Call report
+                </Button>
+              </Box>
+            </AccordionDetails>
+          </Accordion>
+        ))}
       </Box>
-    </LocalizationProvider>
+    </Box>
   );
 };
 
-export default CalendarWithDatePicker;
+export default Calendar;
