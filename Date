@@ -7,10 +7,10 @@ const meetings = [
   { id: 2, time: "13:00", title: "Emirates Airlines - In-person meeting", needsCallReport: false },
 ];
 
-// Function to convert time to a relative top position
+// Function to calculate the position of a time slot
 const calculatePosition = (time) => {
   const [hours, minutes] = time.split(":").map(Number);
-  return hours * 60 + minutes; // Minutes from midnight
+  return (hours - 8) * 60 + minutes; // Minutes from 8:00 AM
 };
 
 const Calendar = () => {
@@ -21,19 +21,35 @@ const Calendar = () => {
         December 2024
       </Typography>
 
-      <Box sx={{ display: "grid", gridTemplateColumns: "1fr", gap: 2, position: "relative" }}>
+      {/* Calendar Body */}
+      <Box sx={{ display: "grid", gridTemplateColumns: "1fr", position: "relative" }}>
         {/* Timeslot Indicators */}
-        {Array.from({ length: 24 }, (_, i) => (
-          <Box key={i} sx={{ position: "relative", height: "60px", borderBottom: "1px solid #ddd" }}>
-            <Typography variant="body2" sx={{ position: "absolute", left: -40, top: 10 }}>
-              {`${i.toString().padStart(2, "0")}:00`}
+        {Array.from({ length: 12 }, (_, i) => (
+          <Box
+            key={i}
+            sx={{
+              position: "relative",
+              height: "60px",
+              borderBottom: "1px solid #ddd",
+            }}
+          >
+            <Typography
+              variant="body2"
+              sx={{
+                position: "absolute",
+                left: -50,
+                top: "10px",
+                color: "gray",
+              }}
+            >
+              {`${(8 + i).toString().padStart(2, "0")}:00`}
             </Typography>
           </Box>
         ))}
 
         {/* Meeting Panels */}
         {meetings.map((meeting) => (
-          <Accordion
+          <Box
             key={meeting.id}
             sx={{
               position: "absolute",
@@ -41,23 +57,30 @@ const Calendar = () => {
               left: "0",
               width: "100%",
               zIndex: 2,
+              borderLeft: "4px solid #1976d2", // Blue left border
+              borderBottom: "1px solid #ddd", // Bottom border
+              bgcolor: "#f9f9f9", // Light background
+              padding: "10px",
+              borderRadius: "4px",
             }}
           >
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography>{meeting.title}</Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <Switch checked={meeting.needsCallReport} />
-                  <Typography>Needs call report</Typography>
+            <Accordion elevation={0}>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography>{meeting.title}</Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Switch checked={meeting.needsCallReport} />
+                    <Typography>Needs call report</Typography>
+                  </Box>
+                  <Button variant="outlined" startIcon={<ExpandMoreIcon />}>
+                    + Call report
+                  </Button>
                 </Box>
-                <Button variant="outlined" startIcon={<ExpandMoreIcon />}>
-                  + Call report
-                </Button>
-              </Box>
-            </AccordionDetails>
-          </Accordion>
+              </AccordionDetails>
+            </Accordion>
+          </Box>
         ))}
       </Box>
     </Box>
