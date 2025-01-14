@@ -1,1 +1,121 @@
+import { createSlice } from "@reduxjs/toolkit";
+
+const initialState = {
+  meetings: [
+          ],
+  filteredMeetings: [],
+  searchQuery: "",
+};
+
+const meetingsSlice = createSlice({
+  name: "meetings",
+  initialState,
+  reducers: {
+    setSearchQuery: (state, action) => {
+      state.searchQuery = action.payload;
+      state.filteredMeetings = state.meetings.filter((meeting) =>
+        meeting.title.toLowerCase().includes(action.payload.toLowerCase())
+      );
+    },
+    resetFilter: (state) => {
+      state.searchQuery = "";
+      state.filteredMeetings = state.meetings;
+    },
+  },
+});
+
+export const { setSearchQuery, resetFilter } = meetingsSlice.actions;
+export default meetingsSlice.reducer;
+
+import React from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { setSearchQuery, resetFilter } from "./meetingsSlice";
+
+const SearchFilter = () => {
+  const dispatch = useDispatch();
+  const { searchQuery, filteredMeetings, meetings } = useSelector(
+    (state) => state.meetings
+  );
+
+  const handleSearch = (e) => {
+    dispatch(setSearchQuery(e.target.value));
+  };
+
+  const handleReset = () => {
+    dispatch(resetFilter());
+  };
+
+  return (
+    <div style={{ marginBottom: "20px" }}>
+      <input
+        type="text"
+        value={searchQuery}
+        placeholder="Search meetings..."
+        onChange={handleSearch}
+        style={{
+          padding: "8px",
+          width: "300px",
+          border: "1px solid #ccc",
+          borderRadius: "4px",
+        }}
+      />
+      <button
+        onClick={handleReset}
+        style={{
+          marginLeft: "10px",
+          padding: "8px 12px",
+          backgroundColor: "#007bff",
+          color: "#fff",
+          border: "none",
+          borderRadius: "4px",
+          cursor: "pointer",
+        }}
+      >
+        Reset
+      </button>
+      <div>
+        <h3>Results:</h3>
+        {filteredMeetings.length > 0 ? (
+          <ul>
+            {filteredMeetings.map((meeting) => (
+              <li key={meeting.id}>
+                {meeting.title} ({meeting.day} - {meeting.time})
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>{searchQuery ? "No meetings found." : "Showing all meetings."}</p>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default SearchFilter;
+
+
+import React from "react";
+import { useSelector } from "react-redux";
+
+const CalendarView = () => {
+  const { filteredMeetings, meetings, searchQuery } = useSelector(
+    (state) => state.meetings
+  );
+  const data = searchQuery ? filteredMeetings : meetings;
+
+  return (
+    <div>
+      {data.map((meeting) => (
+        <div key={meeting.id}>
+          <h4>{meeting.title}</h4>
+          <p>
+            {meeting.day} - {meeting.time} ({meeting.type})
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+export default CalendarView;
 
