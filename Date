@@ -1,1 +1,90 @@
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+
+// API URL (replace with your API endpoint)
+const API_URL = "https://api.example.com/meetings";
+
+// Async thunk to load meetings from the API
+export const fetchMeetings = createAsyncThunk(
+  "meetings/fetchMeetings",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await fetch(API_URL);
+      if (!response.ok) {
+        throw new Error("Failed to fetch meetings");
+      }
+      const data = await response.json();
+      return data; // Assuming the API returns a list of meetings
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+const meetingsSlice = createSlice({
+  name: "meetings",
+  initialState: {
+    meetings: [],
+    filteredMeetings: [],
+    searchQuery: "",
+    loading: false,
+    error: null,
+  },
+  reducers: {
+    setSearchQuery: (state, action) => {
+      state.searchQuery = action.payload;
+      state.filteredMeetings = state.meetings.filter((meeting) =>
+        meeting.title.toLowerCase().includes(action.payload.toLowerCase())
+      );
+    },
+    resetFilter: (state) => {
+      state.searchQuery = "";
+      state.filteredMeetings = state.meetings;
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchMeetings.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchMeetings.fulfilled, (state, action) => {
+        state.loading = false;
+        state.meetings = action.payload;
+        state.filteredMeetings = action.payload; // Default to all meetings
+      })
+      .addCase(fetchMeetings.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
+  },
+});
+
+export const { setSearchQuery, resetFilter } = meetingsSlice.actions;
+export default meetingsSlice.reducer;
+import React, { useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { fetchMeetings } from "./meetingsSlice";
+import SearchFilter from "./SearchFilter";
+import CalendarView from "./CalendarView";
+
+const App = () => {
+  const dispatch = useDispatch();
+  const { loading, error } = useSelector((state) => state.meetings);
+
+  useEffect(() => {
+    dispatch(fetchMeetings());
+  }, [dispatch]);
+
+  return (
+    <div style={{ padding: "20px" }}>
+      <h1>Meeting Calendar</h1>
+      {loading && <p>Loading meetings...</p>}
+      {error && <p style={{ color: "red" }}>{error}</p>}
+      <SearchFilter />
+      <CalendarView />
+    </div>
+  );
+};
+
+export default App;
 
