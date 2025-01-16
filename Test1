@@ -1,0 +1,44 @@
+import React, { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { fetchMeetings } from "./meetingsSlice"; // Thunk action to fetch meetings
+import "./MeetingList.css"; // CSS for flash animation
+
+const MeetingList = () => {
+  const dispatch = useDispatch();
+  const { meetings, status } = useSelector((state) => state.meetings);
+  const [newMeetingIds, setNewMeetingIds] = useState([]);
+
+  // Refresh meetings and identify new ones
+  const handleRefresh = async () => {
+    const oldMeetingIds = meetings.map((meeting) => meeting.id);
+    const result = await dispatch(fetchMeetings()).unwrap(); // Fetch latest meetings
+    const updatedMeetingIds = result.map((meeting) => meeting.id);
+
+    // Find newly added meeting IDs
+    const newIds = updatedMeetingIds.filter((id) => !oldMeetingIds.includes(id));
+    setNewMeetingIds(newIds);
+
+    // Remove highlight after 2 seconds
+    setTimeout(() => setNewMeetingIds([]), 2000);
+  };
+
+  return (
+    <div>
+      <button onClick={handleRefresh} disabled={status === "loading"}>
+        {status === "loading" ? "Refreshing..." : "Refresh"}
+      </button>
+      <ul>
+        {meetings.map((meeting) => (
+          <li
+            key={meeting.id}
+            className={newMeetingIds.includes(meeting.id) ? "highlight" : ""}
+          >
+            {meeting.title} - {meeting.time}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+export default MeetingList;
