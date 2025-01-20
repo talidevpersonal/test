@@ -1,44 +1,69 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchMeetings } from "./meetingsSlice"; // Thunk action to fetch meetings
-import "./MeetingList.css"; // CSS for flash animation
+import { fetchMeetings } from "./meetingsSlice";
+import dayjs from "dayjs";
 
-const MeetingList = () => {
+const GroupedMeetings = () => {
   const dispatch = useDispatch();
-  const { meetings, status } = useSelector((state) => state.meetings);
-  const [newMeetingIds, setNewMeetingIds] = useState([]);
+  const { meetings, status, hasMore, page } = useSelector((state) => state.meetings);
+  const loaderRef = useRef(null);
 
-  // Refresh meetings and identify new ones
-  const handleRefresh = async () => {
-    const oldMeetingIds = meetings.map((meeting) => meeting.id);
-    const result = await dispatch(fetchMeetings()).unwrap(); // Fetch latest meetings
-    const updatedMeetingIds = result.map((meeting) => meeting.id);
+  useEffect(() => {
+    if (status === "idle") {
+      dispatch(fetchMeetings({ page: 1 }));
+    }
+  }, [status, dispatch]);
 
-    // Find newly added meeting IDs
-    const newIds = updatedMeetingIds.filter((id) => !oldMeetingIds.includes(id));
-    setNewMeetingIds(newIds);
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && hasMore && status !== "loading") {
+          dispatch(fetchMeetings({ page: page + 1 }));
+        }
+      },
+      { threshold: 1 }
+    );
 
-    // Remove highlight after 2 seconds
-    setTimeout(() => setNewMeetingIds([]), 2000);
-  };
+    if (loaderRef.current) {
+      observer.observe(loaderRef.current);
+    }
+
+    return () => {
+      if (loaderRef.current) {
+        observer.unobserve(loaderRef.current);
+      }
+    };
+  }, [loaderRef, hasMore, status, dispatch, page]);
+
+  // Group meetings by date
+  const groupedMeetings = meetings.reduce((acc, meeting) => {
+    const date = dayjs(meeting.time).format("YYYY-MM-DD");
+    if (!acc[date]) {
+      acc[date] = [];
+    }
+    acc[date].push(meeting);
+    return acc;
+  }, {});
 
   return (
     <div>
-      <button onClick={handleRefresh} disabled={status === "loading"}>
-        {status === "loading" ? "Refreshing..." : "Refresh"}
-      </button>
-      <ul>
-        {meetings.map((meeting) => (
-          <li
-            key={meeting.id}
-            className={newMeetingIds.includes(meeting.id) ? "highlight" : ""}
-          >
-            {meeting.title} - {meeting.time}
-          </li>
-        ))}
-      </ul>
+      <h1>Meetings</h1>
+      {Object.keys(groupedMeetings).map((date) => (
+        <div key={date}>
+          <h2>{dayjs(date).format("MMMM D, YYYY")}</h2>
+          <ul>
+            {groupedMeetings[date].map((meeting) => (
+              <li key={meeting.id}>
+                {meeting.title} - {dayjs(meeting.time).format("h:mm A")}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      {status === "loading" && <p>Loading...</p>}
+      <div ref={loaderRef} style={{ height: "50px" }} />
     </div>
   );
 };
 
-export default MeetingList;
+export default GroupedMeetings;
