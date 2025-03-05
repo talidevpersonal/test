@@ -1,1 +1,48 @@
 
+npm install @adobe/reactor-extension-core adobe-client-data-layer
+<script src="https://assets.adobedtm.com/your-launch-script.js" async></script>
+const trackEvent = (eventName, data = {}) => {
+  if (window._satellite) {
+    window._satellite.track(eventName, data);
+  } else {
+    console.warn("Adobe Launch (DTM) is not available");
+  }
+};
+
+const trackPageView = (pageName) => {
+  if (window.s) {
+    window.s.pageName = pageName;
+    window.s.t(); // Send page view event
+  } else {
+    console.warn("Adobe Analytics object not available");
+  }
+};
+
+export { trackEvent, trackPageView };
+
+
+import { useEffect } from "react";
+import { useLocation } from "react-router-dom";
+import { trackPageView } from "./utils/analytics";
+
+const AnalyticsTracker = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    trackPageView(location.pathname);
+  }, [location]);
+
+  return null;
+};
+
+export default AnalyticsTracker;
+
+
+import { trackEvent } from "../utils/analytics";
+
+const handleButtonClick = () => {
+  trackEvent("button_click", { button: "signup" });
+};
+
+
+<button onClick={handleButtonClick}>Sign Up</button>
