@@ -361,4 +361,70 @@ export default SignupForm;
 Would you like help with **debugging Adobe Analytics events in React?**
 
 
+### **Do You Need to Follow Adobe Launch Rule Setup When Using React Hooks?**  
 
+**Yes, if you're using Adobe Launch, you still need to set up rules there** even when using React hooks.  
+
+### **Why?**  
+- React hooks **trigger** events inside your app, but Adobe Launch needs **rules** to capture them and send the data to Adobe Analytics.  
+- **React hooks only handle event listeners in React**, but Adobe Launch rules determine **when and how** data is sent to Adobe Analytics.  
+
+---
+
+### **How Hooks and Adobe Launch Work Together**  
+
+| **Component** | **Responsible For** | **Needed?** |
+|--------------|------------------|------------|
+| **React Hook (`useAdobeFormTracking`)** | Detects field interactions inside React | ✅ Yes |
+| **Adobe Launch Rule** | Captures the event and sends data to Adobe Analytics | ✅ Yes |
+
+---
+
+### **How to Integrate React Hooks with Adobe Launch**  
+
+#### **1. Use a Hook to Detect Form Field Changes in React**
+```javascript
+import { useEffect } from "react";
+
+const useAdobeFormTracking = (formId) => {
+  useEffect(() => {
+    const form = document.getElementById(formId);
+    if (!form) return;
+
+    const handleChange = (event) => {
+      if (window._satellite) {
+        window._satellite.track("form_field_interaction", {
+          fieldName: event.target.name,
+          fieldValue: event.target.value,
+        });
+      }
+    };
+
+    form.addEventListener("input", handleChange);
+    return () => form.removeEventListener("input", handleChange);
+  }, [formId]);
+};
+
+export default useAdobeFormTracking;
+```
+
+#### **2. Create a Rule in Adobe Launch to Capture These Events**  
+1. **Go to** **Adobe Experience Platform Data Collection**.  
+2. **Navigate to Rules** → Click **"Create New Rule"**.  
+3. **Set Up the Rule**:  
+   - **Name**: `"Track Form Field Interaction"`  
+   - **Event Type**: `"Core – Direct Call"`  
+   - **Event Name**: `form_field_interaction`  
+   - **Conditions** *(Optional)*: Filter by form field names.  
+4. **Set Adobe Analytics Variables**:  
+   - `eVar10 = %fieldName%`  
+   - `eVar11 = %fieldValue%`  
+5. **Send the Beacon**:  
+   - **Action → Adobe Analytics – Send Beacon (`s.tl()`)**  
+
+---
+
+### **Final Answer: Do You Need Adobe Launch Rules?**  
+✔ **Yes**, even when using React hooks, you still need Adobe Launch rules to handle **event tracking and data collection**.  
+
+Would you like help setting up **data elements** in Adobe Launch for better tracking?
