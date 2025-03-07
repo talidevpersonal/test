@@ -428,3 +428,53 @@ export default useAdobeFormTracking;
 ✔ **Yes**, even when using React hooks, you still need Adobe Launch rules to handle **event tracking and data collection**.  
 
 Would you like help setting up **data elements** in Adobe Launch for better tracking?
+
+#####################"" "" "" #########
+
+### **Can You Use Form Abandonment and Usage Hook in the Same Form?**  
+✅ **Yes, you can use both hooks together in the same form** without conflicts.  
+
+### **Why Does This Work?**  
+- **`useAdobeFormTracking`** tracks **individual field interactions** (user types in a field).  
+- **`useAdobeFormAbandonment`** detects **when a user starts filling the form but leaves without submitting**.  
+
+Each hook listens for **different events**, so they won’t interfere.
+
+---
+
+### **How to Use Both Hooks in the Same Form?**  
+
+#### **1. Import and Use Both Hooks**  
+```javascript
+import useAdobeFormTracking from "../hooks/useAdobeFormTracking";
+import useAdobeFormAbandonment from "../hooks/useAdobeFormAbandonment";
+
+const SignupForm = () => {
+  useAdobeFormTracking("signupForm");
+  useAdobeFormAbandonment("signupForm");
+
+  return (
+    <form id="signupForm">
+      <input type="text" name="username" placeholder="Username" />
+      <input type="email" name="email" placeholder="Email" />
+      <button type="submit">Submit</button>
+    </form>
+  );
+};
+
+export default SignupForm;
+```
+
+---
+
+### **How Will Adobe Launch Handle This?**  
+
+| **Hook** | **What It Tracks** | **Adobe Launch Rule Needed?** |
+|----------|-------------------|--------------------------|
+| **`useAdobeFormTracking`** | User types in a field (usage tracking) | ✅ Rule for `"form_field_interaction"` |
+| **`useAdobeFormAbandonment`** | User starts typing but leaves | ✅ Rule for `"form_abandonment"` |
+
+Both hooks fire **separate events**, and Adobe Launch will process them independently.  
+
+Would you like to **track form submission** as well?
+
