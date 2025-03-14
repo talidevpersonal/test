@@ -1,1 +1,92 @@
 
+import React, { useState } from "react";
+import { Box, Button, Drawer, Grid, Typography, IconButton, Paper } from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
+import CloseIcon from "@mui/icons-material/Close";
+
+const allWidgets = [
+  { id: "revenue", title: "Revenue", content: "Revenue Data" },
+  { id: "utilization", title: "Avg. Limit Utilization", content: "Utilization Data" },
+  { id: "liability", title: "Avg. Liability Balance", content: "Liability Data" },
+  { id: "pipeline", title: "Pipeline", content: "Pipeline Data" },
+];
+
+const Dashboard = () => {
+  const [dashboardWidgets, setDashboardWidgets] = useState([
+    { id: "revenue", title: "Revenue", content: "Revenue Data" },
+    { id: "utilization", title: "Avg. Limit Utilization", content: "Utilization Data" },
+  ]);
+
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedWidget, setSelectedWidget] = useState(null);
+
+  const handleWidgetSelect = (widget) => {
+    setSelectedWidget(widget);
+  };
+
+  const handleReplaceWidget = (index) => {
+    if (selectedWidget) {
+      const newWidgets = [...dashboardWidgets];
+      newWidgets[index] = selectedWidget;
+      setDashboardWidgets(newWidgets);
+      setSelectedWidget(null);
+    }
+  };
+
+  return (
+    <Box sx={{ padding: 3 }}>
+      {/* Customize Button */}
+      <Button variant="contained" onClick={() => setDrawerOpen(true)}>
+        Customize
+      </Button>
+
+      {/* Dashboard Widgets */}
+      <Grid container spacing={2} sx={{ marginTop: 3 }}>
+        {dashboardWidgets.map((widget, index) => (
+          <Grid item xs={12} sm={6} key={widget.id}>
+            <Paper sx={{ padding: 2, border: "2px dashed #1976d2", textAlign: "center" }}>
+              <Typography variant="h6">{widget.title}</Typography>
+              <Typography variant="body2">{widget.content}</Typography>
+              <Button
+                startIcon={<AddIcon />}
+                onClick={() => handleReplaceWidget(index)}
+                sx={{ marginTop: 1 }}
+                variant="outlined"
+              >
+                Replace
+              </Button>
+            </Paper>
+          </Grid>
+        ))}
+      </Grid>
+
+      {/* Widget Drawer */}
+      <Drawer anchor="right" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
+        <Box sx={{ width: 300, padding: 2 }}>
+          <Box display="flex" justifyContent="space-between">
+            <Typography variant="h6">Select Widget</Typography>
+            <IconButton onClick={() => setDrawerOpen(false)}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+          {allWidgets.map((widget) => (
+            <Paper
+              key={widget.id}
+              sx={{
+                padding: 2,
+                marginY: 1,
+                backgroundColor: selectedWidget?.id === widget.id ? "#f0f0f0" : "white",
+                cursor: "pointer",
+              }}
+              onClick={() => handleWidgetSelect(widget)}
+            >
+              <Typography variant="body1">{widget.title}</Typography>
+            </Paper>
+          ))}
+        </Box>
+      </Drawer>
+    </Box>
+  );
+};
+
+export default Dashboard;
