@@ -1,31 +1,15 @@
 import React from "react";
-import { Paper, Typography, Button } from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
-
-const Widget = ({ widget, onReplace }) => {
-  return (
-    <Paper sx={{ padding: 2, border: "2px dashed #1976d2", textAlign: "center" }}>
-      <Typography variant="h6">{widget.title}</Typography>
-      <Typography variant="body2">{widget.content}</Typography>
-      <Button
-        startIcon={<AddIcon />}
-        onClick={onReplace}
-        sx={{ marginTop: 1 }}
-        variant="outlined"
-      >
-        Replace
-      </Button>
-    </Paper>
-  );
-};
-
-export default Widget;
-
-import React from "react";
-import { Box, Drawer, Paper, Typography, IconButton } from "@mui/material";
+import { Box, Drawer, Typography, IconButton } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 
-const WidgetList = ({ open, onClose, widgets, onSelect }) => {
+const widgetList = [
+  { id: "revenue", title: "Revenue" },
+  { id: "utilization", title: "Avg. Limit Utilization" },
+  { id: "liability", title: "Avg. Liability Balance" },
+  { id: "pipeline", title: "Pipeline" },
+];
+
+const WidgetList = ({ open, onClose, onSelect }) => {
   return (
     <Drawer anchor="right" open={open} onClose={onClose}>
       <Box sx={{ width: 300, padding: 2 }}>
@@ -35,20 +19,22 @@ const WidgetList = ({ open, onClose, widgets, onSelect }) => {
             <CloseIcon />
           </IconButton>
         </Box>
-        {widgets.map((widget) => (
-          <Paper
+        {widgetList.map((widget) => (
+          <div
             key={widget.id}
-            sx={{
-              padding: 2,
-              marginY: 1,
-              backgroundColor: "white",
+            style={{
+              padding: "16px",
+              margin: "8px 0",
+              backgroundColor: "#fff",
+              borderRadius: "8px",
               cursor: "pointer",
-              "&:hover": { backgroundColor: "#f0f0f0" },
+              border: "1px solid #ddd",
+              textAlign: "center",
             }}
             onClick={() => onSelect(widget)}
           >
             <Typography variant="body1">{widget.title}</Typography>
-          </Paper>
+          </div>
         ))}
       </Box>
     </Drawer>
@@ -57,23 +43,94 @@ const WidgetList = ({ open, onClose, widgets, onSelect }) => {
 
 export default WidgetList;
 
+import React, { useEffect, useState } from "react";
+import { Typography } from "@mui/material";
+
+const RevenueWidget = () => {
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    fetch("/api/revenue") // Replace with actual API
+      .then((res) => res.json())
+      .then((data) => setData(data))
+      .catch((err) => console.error("Error fetching revenue:", err));
+  }, []);
+
+  return (
+    <div style={{ padding: "16px", border: "2px dashed #1976d2", borderRadius: "8px" }}>
+      <Typography variant="h6">Revenue</Typography>
+      {data ? <Typography variant="body2">{data.amount} M</Typography> : "Loading..."}
+    </div>
+  );
+};
+
+export default RevenueWidget;
+
+import React, { useEffect, useState } from "react";
+import { Typography } from "@mui/material";
+
+const UtilizationWidget = () => {
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    fetch("/api/utilization") // Replace with actual API
+      .then((res) => res.json())
+      .then((data) => setData(data))
+      .catch((err) => console.error("Error fetching utilization:", err));
+  }, []);
+
+  return (
+    <div style={{ padding: "16px", border: "2px dashed #1976d2", borderRadius: "8px" }}>
+      <Typography variant="h6">Avg. Limit Utilization</Typography>
+      {data ? <Typography variant="body2">{data.percentage}%</Typography> : "Loading..."}
+    </div>
+  );
+};
+
+export default UtilizationWidget;
+
+import React, { useEffect, useState } from "react";
+import { Typography } from "@mui/material";
+
+const LiabilityWidget = () => {
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    fetch("/api/liability") // Replace with actual API
+      .then((res) => res.json())
+      .then((data) => setData(data))
+      .catch((err) => console.error("Error fetching liability:", err));
+  }, []);
+
+  return (
+    <div style={{ padding: "16px", border: "2px dashed #1976d2", borderRadius: "8px" }}>
+      <Typography variant="h6">Avg. Liability Balance</Typography>
+      {data ? <Typography variant="body2">{data.balance} B</Typography> : "Loading..."}
+    </div>
+  );
+};
+
+export default LiabilityWidget;
 
 import React, { useState } from "react";
 import { Box, Button, Grid } from "@mui/material";
-import Widget from "./Widget";
 import WidgetList from "./WidgetList";
 
-const allWidgets = [
-  { id: "revenue", title: "Revenue", content: "Revenue Data" },
-  { id: "utilization", title: "Avg. Limit Utilization", content: "Utilization Data" },
-  { id: "liability", title: "Avg. Liability Balance", content: "Liability Data" },
-  { id: "pipeline", title: "Pipeline", content: "Pipeline Data" },
-];
+// Import widgets
+import RevenueWidget from "./widgets/RevenueWidget";
+import UtilizationWidget from "./widgets/UtilizationWidget";
+import LiabilityWidget from "./widgets/LiabilityWidget";
+
+const widgetComponents = {
+  revenue: RevenueWidget,
+  utilization: UtilizationWidget,
+  liability: LiabilityWidget,
+};
 
 const Dashboard = () => {
   const [dashboardWidgets, setDashboardWidgets] = useState([
-    { id: "revenue", title: "Revenue", content: "Revenue Data" },
-    { id: "utilization", title: "Avg. Limit Utilization", content: "Utilization Data" },
+    { id: "revenue" },
+    { id: "utilization" },
   ]);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -87,7 +144,7 @@ const Dashboard = () => {
   const handleSelectWidget = (widget) => {
     if (selectedIndex !== null) {
       const newWidgets = [...dashboardWidgets];
-      newWidgets[selectedIndex] = widget;
+      newWidgets[selectedIndex] = { id: widget.id };
       setDashboardWidgets(newWidgets);
       setSelectedIndex(null);
       setDrawerOpen(false);
@@ -99,18 +156,20 @@ const Dashboard = () => {
       <Button variant="contained" onClick={() => setDrawerOpen(true)}>Customize</Button>
 
       <Grid container spacing={2} sx={{ marginTop: 3 }}>
-        {dashboardWidgets.map((widget, index) => (
-          <Grid item xs={12} sm={6} key={index}>
-            <Widget widget={widget} onReplace={() => handleOpenDrawer(index)} />
-          </Grid>
-        ))}
+        {dashboardWidgets.map((widget, index) => {
+          const WidgetComponent = widgetComponents[widget.id];
+          return (
+            <Grid item xs={12} sm={6} key={index} onClick={() => handleOpenDrawer(index)}>
+              {WidgetComponent ? <WidgetComponent /> : null}
+            </Grid>
+          );
+        })}
       </Grid>
 
-      <WidgetList open={drawerOpen} onClose={() => setDrawerOpen(false)} widgets={allWidgets} onSelect={handleSelectWidget} />
+      <WidgetList open={drawerOpen} onClose={() => setDrawerOpen(false)} onSelect={handleSelectWidget} />
     </Box>
   );
 };
 
 export default Dashboard;
-
 
