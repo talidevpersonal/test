@@ -1,1 +1,239 @@
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import React from 'react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import '@testing-library/jest-dom';
+import { Provider, useSelector as useSelectorOrig, useDispatch as useDispatchOrig } from 'react-redux';
+import { configureStore, createSlice } from '@reduxjs/toolkit';
+
+// ---- ALL MOCKS MUST COME BEFORE the component import ----
+
+// use appId from URL
+jest.mock('../../hooks/useApplicationIdFromUrl', () => ({
+  __esModule: true,
+  default: () => 'APP123',
+}));
+
+// snackbar
+const snackbarSpy = jest.fn();
+jest.mock('../../context/snackbarContext', () => ({
+  useSnackbar: () => snackbarSpy,
+}));
+
+// rfi service
+const getRfiMock = jest.fn().mockResolvedValue({ status: 'OPEN', requests: [] });
+const postRfiResponseMock = jest.fn().mockResolvedValue({});
+jest.mock('../../services/rfi.service', () => ({
+  __esModule: true,
+  default: {
+    getRfi: (...args: any[]) => getRfiMock(...args),
+    postRfiResponse: (...args: any[]) => postRfiResponseMock(...args),
+  },
+}));
+
+// document service
+const uploadDocumentMock = jest.fn().mockResolvedValue({ id: 'UP1' });
+const deleteDocumentMock = jest.fn().mockResolvedValue({ success: true });
+jest.mock('../../services/document.service', () => ({
+  __esModule: true,
+  default: {
+    uploadDocument: (...args: any[]) => uploadDocumentMock(...args),
+    deleteDocument: (...args: any[]) => deleteDocumentMock(...args),
+  },
+}));
+
+// helpers (light stubs)
+jest.mock('../../utils/documentHelper', () => ({
+  mergeDocuments: (a: any, b: any) => [...a, ...b],
+  updateDocsAfterUpload: (section: any, rfiDoc: any, _res: any, status: 'success' | 'failed') => {
+    const docs = status === 'success'
+      ? [...section.documents, { ...rfiDoc, id: rfiDoc.id || 'doc-1', location: 's3://x' }]
+      : section.documents;
+    return { ...section, documents: docs, status };
+  },
+  getCurrentSection: (_getState: any, section: any) => section,
+  handleRfiError: (_e: any, setLoading: any, setErr: any) => { setLoading(false); setErr('error'); },
+  mapRfiRequestsToResponses: (reqs: any) => reqs,
+  toRfiDocument: (file: File) => ({ name: file.name, originalFile: file }),
+}));
+
+// simple stubs for heavy children
+jest.mock('../../components/DocumentSectionCard', () => ({
+  __esModule: true,
+  default: (p: any) => (
+    <div data-testid="doc-section">
+      {p?.rfiItem?.requestid}
+      <button onClick={() => p.onAttach?.([new File(['x'], 'x.pdf')])}>Upload</button>
+      <button onClick={() => p.onRemove?.({ id: 'B1', name: 'b.pdf' })}>Delete</button>
+    </div>
+  ),
+}));
+jest.mock('../../components/TextDocumentSectionCard', () => ({
+  __esModule: true,
+  default: (p: any) => (
+    <div data-testid="text-doc-section">
+      {p?.rfiItem?.requestid}
+      <button onClick={() => p.onComment?.('ok')}>comment</button>
+      <button onClick={() => p.onAttach?.([new File(['y'], 'y.pdf')])}>UploadTD</button>
+    </div>
+  ),
+}));
+jest.mock('../../components/DocumentSidebar', () => ({
+  __esModule: true,
+  default: () => <aside data-testid="sidebar" />,
+}));
+jest.mock('../../shared/components/Loader', () => ({
+  __esModule: true,
+  default: () => <div data-testid="loader" />,
+}));
+jest.mock('../../components/ConfirmationDialogue', () => ({
+  __esModule: true,
+  default: ({ open, onCancel, onProceed, title }: any) =>
+    open ? (
+      <div data-testid="confirm">
+        <div>{title}</div>
+        <button onClick={onProceed}>Submit</button>
+        <button onClick={onCancel}>Cancel</button>
+      </div>
+    ) : null,
+}));
+jest.mock('../../components/ThankYouScreen', () => ({
+  __esModule: true,
+  default: () => <div>Thank you!</div>,
+}));
+
+// slice action creators the component imports
+jest.mock('../../store/rfiUploadSlice', () => ({
+  setRfiResponses: (payload: any) => ({ type: 'rfi/SET', payload }),
+  updateRfiResponse: (payload: any) => ({ type: 'rfi/UPDATE', payload }),
+  setRfiFullyAnswered: (payload: any) => ({ type: 'rfi/FULL', payload }),
+}));
+
+// ---- import component AFTER mocks
+import Documents from '../Documents';
+
+// ---- store helpers
+
+function buildStore(pre?: Partial<any>) {
+  const rfiUpload = createSlice({
+    name: 'rfiUpload',
+    initialState: { responses: [], isRfiFullyAnswered: false, ...(pre?.rfiUpload || {}) },
+    reducers: {},
+    extraReducers: builder => {
+      builder.addCase('rfi/SET' as any, (state: any, action: any) => {
+        state.responses = action.payload;
+      });
+      builder.addCase('rfi/UPDATE' as any, (state: any, action: any) => {
+        state.responses = state.responses.map((s: any) =>
+          s.requestid === action.payload.requestid ? action.payload : s
+        );
+      });
+      builder.addCase('rfi/FULL' as any, (state: any, action: any) => {
+        state.isRfiFullyAnswered = action.payload;
+      });
+    },
+  });
+
+  const auth = createSlice({
+    name: 'auth',
+    initialState: { user: { email: 'user@example.com' }, ...(pre?.auth || {}) },
+    reducers: {},
+  });
+
+  return configureStore({ reducer: { rfiUpload: rfiUpload.reducer, auth: auth.reducer } });
+}
+
+function renderWith(store: any) {
+  return render(
+    <Provider store={store}>
+      <Documents />
+    </Provider>
+  );
+}
+
+// ---- fixtures
+const RESPONSES = [
+  {
+    requestid: 'REQ-TEXT-DOC',
+    requestType: 'TEXT_AND_DOCUMENT',
+    category: 'KYC',
+    answer: 'some text',
+    documents: [{ id: 'A1', name: 'a.pdf', location: 's3://a' }],
+    status: 'PENDING_ANSWERED',
+  },
+  {
+    requestid: 'REQ-DOC',
+    requestType: 'DOCUMENT',
+    category: 'INCOME',
+    answer: '',
+    documents: [{ id: 'B1', name: 'b.pdf', location: 's3://b' }],
+    status: 'PENDING_ANSWERED',
+  },
+];
+
+describe('<Documents />', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('renders header, sidebar and sections', async () => {
+    const store = buildStore({ rfiUpload: { responses: RESPONSES } });
+    renderWith(store);
+
+    await waitFor(() => expect(getRfiMock).toHaveBeenCalled());
+
+    expect(await screen.findByText(/Documents and Information Collection/i)).toBeInTheDocument();
+    expect(screen.getByTestId('sidebar')).toBeInTheDocument();
+    expect(screen.getAllByTestId(/doc-section|text-doc-section/).length).toBeGreaterThan(0);
+  });
+
+  it('Save as Draft posts DRAFT payload', async () => {
+    const store = buildStore({ rfiUpload: { responses: RESPONSES } });
+    renderWith(store);
+
+    await waitFor(() => expect(getRfiMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole('button', { name: /save as draft/i }));
+
+    await waitFor(() =>
+      expect(postRfiResponseMock).toHaveBeenCalledWith(
+        expect.objectContaining({ state: 'DRAFT', applicationId: 'APP123', isRfiFullyAnswered: false })
+      )
+    );
+    expect(snackbarSpy).toHaveBeenCalledWith('Draft saved successfully.', 'success');
+  });
+
+  it('Submit flow calls SUBMIT and shows Thank you', async () => {
+    const store = buildStore({ rfiUpload: { responses: RESPONSES } });
+    renderWith(store);
+
+    await waitFor(() => expect(getRfiMock).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button', { name: /submit documents/i }));
+    expect(await screen.findByTestId('confirm')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Submit'));
+
+    await waitFor(() =>
+      expect(postRfiResponseMock).toHaveBeenCalledWith(
+        expect.objectContaining({ state: 'SUBMIT', applicationId: 'APP123', isRfiFullyAnswered: true })
+      )
+    );
+    expect(await screen.findByText(/Thank you!/i)).toBeInTheDocument();
+  });
+
+  it('upload and delete trigger document service calls', async () => {
+    const store = buildStore({ rfiUpload: { responses: RESPONSES } });
+    renderWith(store);
+
+    await waitFor(() => expect(getRfiMock).toHaveBeenCalled());
+
+    // Click the stubbed upload buttons from both section cards
+    fireEvent.click(screen.getByText('Upload'));
+    fireEvent.click(screen.getByText('UploadTD'));
+    expect(uploadDocumentMock).toHaveBeenCalled();
+
+    // Delete flow
+    fireEvent.click(screen.getAllByText('Delete')[0]);
+    await waitFor(() => expect(deleteDocumentMock).toHaveBeenCalled());
+  });
+});
