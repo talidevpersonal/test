@@ -1,63 +1,78 @@
-
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { Provider, useSelector as useSelectorOrig, useDispatch as useDispatchOrig } from 'react-redux';
+import { Provider } from 'react-redux';
 import { configureStore, createSlice } from '@reduxjs/toolkit';
 
-// ---- ALL MOCKS MUST COME BEFORE the component import ----
+/* ============================================================================
+   HOIST-SAFE MOCK VARIABLES (names start with "mock")
+   ========================================================================== */
+export const mockSnackbar = jest.fn();
+export const mockGetRfi = jest.fn().mockResolvedValue({ status: 'OPEN', requests: [] });
+export const mockPostRfiResponse = jest.fn().mockResolvedValue({});
+export const mockUploadDocument = jest.fn().mockResolvedValue({ id: 'UP1' });
+export const mockDeleteDocument = jest.fn().mockResolvedValue({ success: true });
 
-// use appId from URL
+/* ============================================================================
+   MOCKS (must be before importing the component)
+   ========================================================================== */
+
+// URL -> application id
 jest.mock('../../hooks/useApplicationIdFromUrl', () => ({
   __esModule: true,
   default: () => 'APP123',
 }));
 
 // snackbar
-const snackbarSpy = jest.fn();
 jest.mock('../../context/snackbarContext', () => ({
-  useSnackbar: () => snackbarSpy,
+  __esModule: true,
+  useSnackbar: () => mockSnackbar,
 }));
 
 // rfi service
-const getRfiMock = jest.fn().mockResolvedValue({ status: 'OPEN', requests: [] });
-const postRfiResponseMock = jest.fn().mockResolvedValue({});
 jest.mock('../../services/rfi.service', () => ({
   __esModule: true,
   default: {
-    getRfi: (...args: any[]) => getRfiMock(...args),
-    postRfiResponse: (...args: any[]) => postRfiResponseMock(...args),
+    getRfi: (...args: any[]) => mockGetRfi(...args),
+    postRfiResponse: (...args: any[]) => mockPostRfiResponse(...args),
   },
 }));
 
 // document service
-const uploadDocumentMock = jest.fn().mockResolvedValue({ id: 'UP1' });
-const deleteDocumentMock = jest.fn().mockResolvedValue({ success: true });
 jest.mock('../../services/document.service', () => ({
   __esModule: true,
   default: {
-    uploadDocument: (...args: any[]) => uploadDocumentMock(...args),
-    deleteDocument: (...args: any[]) => deleteDocumentMock(...args),
+    uploadDocument: (...args: any[]) => mockUploadDocument(...args),
+    deleteDocument: (...args: any[]) => mockDeleteDocument(...args),
   },
 }));
 
 // helpers (light stubs)
 jest.mock('../../utils/documentHelper', () => ({
   mergeDocuments: (a: any, b: any) => [...a, ...b],
-  updateDocsAfterUpload: (section: any, rfiDoc: any, _res: any, status: 'success' | 'failed') => {
-    const docs = status === 'success'
-      ? [...section.documents, { ...rfiDoc, id: rfiDoc.id || 'doc-1', location: 's3://x' }]
-      : section.documents;
+  updateDocsAfterUpload: (
+    section: any,
+    rfiDoc: any,
+    _res: any,
+    status: 'success' | 'failed'
+  ) => {
+    const docs =
+      status === 'success'
+        ? [...section.documents, { ...rfiDoc, id: rfiDoc.id || 'doc-1', location: 's3://x' }]
+        : section.documents;
     return { ...section, documents: docs, status };
   },
   getCurrentSection: (_getState: any, section: any) => section,
-  handleRfiError: (_e: any, setLoading: any, setErr: any) => { setLoading(false); setErr('error'); },
+  handleRfiError: (_e: any, setLoading: any, setErr: any) => {
+    setLoading(false);
+    setErr('error');
+  },
   mapRfiRequestsToResponses: (reqs: any) => reqs,
   toRfiDocument: (file: File) => ({ name: file.name, originalFile: file }),
 }));
 
-// simple stubs for heavy children
+// heavy child components -> tiny stubs
 jest.mock('../../components/DocumentSectionCard', () => ({
   __esModule: true,
   default: (p: any) => (
@@ -102,24 +117,27 @@ jest.mock('../../components/ThankYouScreen', () => ({
   default: () => <div>Thank you!</div>,
 }));
 
-// slice action creators the component imports
+// slice actions (so our minimal reducer can handle them)
 jest.mock('../../store/rfiUploadSlice', () => ({
   setRfiResponses: (payload: any) => ({ type: 'rfi/SET', payload }),
   updateRfiResponse: (payload: any) => ({ type: 'rfi/UPDATE', payload }),
   setRfiFullyAnswered: (payload: any) => ({ type: 'rfi/FULL', payload }),
 }));
 
-// ---- import component AFTER mocks
+/* ============================================================================
+   IMPORT COMPONENT (after mocks)
+   ========================================================================== */
 import Documents from '../Documents';
 
-// ---- store helpers
-
+/* ============================================================================
+   STORE HELPERS
+   ========================================================================== */
 function buildStore(pre?: Partial<any>) {
   const rfiUpload = createSlice({
     name: 'rfiUpload',
     initialState: { responses: [], isRfiFullyAnswered: false, ...(pre?.rfiUpload || {}) },
     reducers: {},
-    extraReducers: builder => {
+    extraReducers: (builder) => {
       builder.addCase('rfi/SET' as any, (state: any, action: any) => {
         state.responses = action.payload;
       });
@@ -151,7 +169,9 @@ function renderWith(store: any) {
   );
 }
 
-// ---- fixtures
+/* ============================================================================
+   FIXTURES
+   ========================================================================== */
 const RESPONSES = [
   {
     requestid: 'REQ-TEXT-DOC',
@@ -171,6 +191,9 @@ const RESPONSES = [
   },
 ];
 
+/* ============================================================================
+   TESTS
+   ========================================================================== */
 describe('<Documents />', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -180,7 +203,7 @@ describe('<Documents />', () => {
     const store = buildStore({ rfiUpload: { responses: RESPONSES } });
     renderWith(store);
 
-    await waitFor(() => expect(getRfiMock).toHaveBeenCalled());
+    await waitFor(() => expect(mockGetRfi).toHaveBeenCalled());
 
     expect(await screen.findByText(/Documents and Information Collection/i)).toBeInTheDocument();
     expect(screen.getByTestId('sidebar')).toBeInTheDocument();
@@ -191,31 +214,40 @@ describe('<Documents />', () => {
     const store = buildStore({ rfiUpload: { responses: RESPONSES } });
     renderWith(store);
 
-    await waitFor(() => expect(getRfiMock).toHaveBeenCalled());
+    await waitFor(() => expect(mockGetRfi).toHaveBeenCalled());
 
     fireEvent.click(screen.getByRole('button', { name: /save as draft/i }));
 
     await waitFor(() =>
-      expect(postRfiResponseMock).toHaveBeenCalledWith(
-        expect.objectContaining({ state: 'DRAFT', applicationId: 'APP123', isRfiFullyAnswered: false })
+      expect(mockPostRfiResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          state: 'DRAFT',
+          applicationId: 'APP123',
+          isRfiFullyAnswered: false,
+        })
       )
     );
-    expect(snackbarSpy).toHaveBeenCalledWith('Draft saved successfully.', 'success');
+    expect(mockSnackbar).toHaveBeenCalledWith('Draft saved successfully.', 'success');
   });
 
   it('Submit flow calls SUBMIT and shows Thank you', async () => {
     const store = buildStore({ rfiUpload: { responses: RESPONSES } });
     renderWith(store);
 
-    await waitFor(() => expect(getRfiMock).toHaveBeenCalled());
+    await waitFor(() => expect(mockGetRfi).toHaveBeenCalled());
+
     fireEvent.click(screen.getByRole('button', { name: /submit documents/i }));
     expect(await screen.findByTestId('confirm')).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Submit'));
 
     await waitFor(() =>
-      expect(postRfiResponseMock).toHaveBeenCalledWith(
-        expect.objectContaining({ state: 'SUBMIT', applicationId: 'APP123', isRfiFullyAnswered: true })
+      expect(mockPostRfiResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          state: 'SUBMIT',
+          applicationId: 'APP123',
+          isRfiFullyAnswered: true,
+        })
       )
     );
     expect(await screen.findByText(/Thank you!/i)).toBeInTheDocument();
@@ -225,15 +257,13 @@ describe('<Documents />', () => {
     const store = buildStore({ rfiUpload: { responses: RESPONSES } });
     renderWith(store);
 
-    await waitFor(() => expect(getRfiMock).toHaveBeenCalled());
+    await waitFor(() => expect(mockGetRfi).toHaveBeenCalled());
 
-    // Click the stubbed upload buttons from both section cards
     fireEvent.click(screen.getByText('Upload'));
     fireEvent.click(screen.getByText('UploadTD'));
-    expect(uploadDocumentMock).toHaveBeenCalled();
+    expect(mockUploadDocument).toHaveBeenCalled();
 
-    // Delete flow
     fireEvent.click(screen.getAllByText('Delete')[0]);
-    await waitFor(() => expect(deleteDocumentMock).toHaveBeenCalled());
+    await waitFor(() => expect(mockDeleteDocument).toHaveBeenCalled());
   });
 });
