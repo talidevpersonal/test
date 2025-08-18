@@ -1,1 +1,276 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import React from "react";
+import { screen, render, fireEvent, waitFor } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { Provider } from "react-redux";
+import { configureStore, createSlice } from "@reduxjs/toolkit";
+
+// --- Module mocks that the component imports ---
+
+// 1) Hook: useApplicationIdFromUrl
+jest.mock("../../hooks/useApplicationIdFromUrl", () => ({
+  __esModule: true,
+  default: () => "APP123",
+}));
+
+// 2) Snackbar
+const snackbarSpy = jest.fn();
+jest.mock("../../context/snackbarContext", () => ({
+  useSnackbar: () => snackbarSpy,
+}));
+
+// 3) Services: rfiService + documentService
+const postRfiResponseMock = jest.fn().mockResolvedValue({});
+const getRfiMock = jest.fn().mockResolvedValue({
+  status: "OPEN",
+  requests: [], // we’ll feed initial store with responses directly
+});
+jest.mock("../../services/rfi.service", () => ({
+  __esModule: true,
+  default: {
+    getRfi: (...args: any[]) => getRfiMock(...args),
+    postRfiResponse: (...args: any[]) => postRfiResponseMock(...args),
+  },
+}));
+
+jest.mock("../../services/document.service", () => ({
+  __esModule: true,
+  default: {
+    uploadDocument: jest.fn(),
+    deleteDocument: jest.fn(),
+  },
+}));
+
+// 4) Helpers used by the component (minimal stubs)
+jest.mock("../../utils/documentHelper", () => ({
+  mergeDocuments: (a: any, b: any) => [...a, ...b],
+  updateDocsAfterUpload: (section: any, rfiDoc: any, _res: any, status: "success" | "failed") => {
+    const docs = status === "success"
+      ? [...section.documents, { ...rfiDoc, id: rfiDoc.id || "doc-1", location: "s3://x" }]
+      : section.documents;
+    return { ...section, documents: docs, status };
+  },
+  getCurrentSection: (_getState: any, section: any) => section,
+  handleRfiError: (_err: any, setLoading: any, setErr: any) => {
+    setLoading(false);
+    setErr("error");
+  },
+  mapRfiRequestsToResponses: (reqs: any) => reqs,
+  toRfiDocument: (file: File) => ({ name: file.name, originalFile: file }),
+}));
+
+// 5) Child components → light stubs so we don’t test them here
+jest.mock("../../components/DocumentSectionCard", () => ({
+  __esModule: true,
+  default: (props: any) => <div data-testid="doc-section">{props?.rfiItem?.requestid}</div>,
+}));
+jest.mock("../../components/TextDocumentSectionCard", () => ({
+  __esModule: true,
+  default: (props: any) => (
+    <div data-testid="text-doc-section">
+      {props?.rfiItem?.requestid}
+      <button onClick={() => props.onComment?.("ok")}>comment</button>
+    </div>
+  ),
+}));
+jest.mock("../../components/DocumentSidebar", () => ({
+  __esModule: true,
+  default: () => <aside data-testid="sidebar" />,
+}));
+jest.mock("../../shared/components/Loader", () => ({
+  __esModule: true,
+  default: () => <div data-testid="loader" />,
+}));
+jest.mock("../../components/ConfirmationDialogue", () => ({
+  __esModule: true,
+  default: ({ open, onCancel, onProceed, title }: any) =>
+    open ? (
+      <div data-testid="confirm">
+        <div>{title}</div>
+        <button onClick={onProceed}>Submit</button>
+        <button onClick={onCancel}>Cancel</button>
+      </div>
+    ) : null,
+}));
+jest.mock("../../components/ThankYouScreen", () => ({
+  __esModule: true,
+  default: () => <div>Thank you!</div>,
+}));
+
+// 6) Types-only imports from store are irrelevant at runtime; mock the module.
+jest.mock("../../store/store", () => ({
+  AppDispatch: undefined,
+  RootState: undefined,
+}));
+
+// 7) The slice action creators the component imports.
+//    We control their action.type strings here so our reducer can handle them.
+const TYPES = {
+  SET: "rfi/SET",
+  UPDATE: "rfi/UPDATE",
+  FULL: "rfi/FULL",
+};
+jest.mock("../../store/rfiUploadSlice", () => ({
+  setRfiResponses: (payload: any) => ({ type: "rfi/SET", payload }),
+  updateRfiResponse: (payload: any) => ({ type: "rfi/UPDATE", payload }),
+  setRfiFullyAnswered: (payload: any) => ({ type: "rfi/FULL", payload }),
+}));
+
+// --- The component under test (import after mocks) ---
+import Documents from "../Documents";
+
+// --- Minimal real reducers just for this test ---
+
+function buildStore(preloaded?: Partial<any>) {
+  const rfiUploadSlice = createSlice({
+    name: "rfiUpload",
+    initialState: {
+      responses: [],
+      isRfiFullyAnswered: false,
+      ...(preloaded?.rfiUpload || {}),
+    },
+    reducers: {},
+    extraReducers: (builder) => {
+      builder.addCase(TYPES.SET as any, (state: any, action: any) => {
+        state.responses = action.payload;
+      });
+      builder.addCase(TYPES.UPDATE as any, (state: any, action: any) => {
+        state.responses = state.responses.map((s: any) =>
+          s.requestid === action.payload.requestid ? action.payload : s
+        );
+      });
+      builder.addCase(TYPES.FULL as any, (state: any, action: any) => {
+        state.isRfiFullyAnswered = action.payload;
+      });
+    },
+  });
+
+  const authSlice = createSlice({
+    name: "auth",
+    initialState: {
+      user: { email: "user@example.com" },
+      ...(preloaded?.auth || {}),
+    },
+    reducers: {},
+  });
+
+  return configureStore({
+    reducer: {
+      rfiUpload: rfiUploadSlice.reducer,
+      auth: authSlice.reducer,
+    },
+    preloadedState: {
+      rfiUpload: rfiUploadSlice.getInitialState(),
+      auth: authSlice.getInitialState(),
+    },
+  });
+}
+
+function renderWithStore(store: any) {
+  return render(
+    <Provider store={store}>
+      <Documents />
+    </Provider>
+  );
+}
+
+// --- Fixtures ---
+
+const RESPONSES = [
+  {
+    requestid: "REQ-TEXT-DOC",
+    requestType: "TEXT_AND_DOCUMENT",
+    category: "KYC",
+    answer: "some text",
+    documents: [{ id: "A1", name: "a.pdf", location: "s3://a" }],
+    status: "PENDING_ANSWERED",
+  },
+  {
+    requestid: "REQ-DOC",
+    requestType: "DOCUMENT",
+    category: "INCOME",
+    answer: "",
+    documents: [{ id: "B1", name: "b.pdf", location: "s3://b" }],
+    status: "PENDING_ANSWERED",
+  },
+];
+
+// --------------------------------------------------------------------------------
+
+describe("<Documents />", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test("renders header, sidebar, and sections after loading", async () => {
+    const store = buildStore({ rfiUpload: { responses: RESPONSES } });
+
+    renderWithStore(store);
+
+    // The component calls getRfi; we let it resolve quickly
+    await waitFor(() => expect(getRfiMock).toHaveBeenCalled());
+
+    // Header text
+    expect(
+      await screen.findByText(/Documents and Information Collection/i)
+    ).toBeInTheDocument();
+
+    // Sidebar appears
+    expect(screen.getByTestId("sidebar")).toBeInTheDocument();
+
+    // Both sections render (stubbed components)
+    expect(screen.getAllByTestId("doc-section").length + screen.getAllByTestId("text-doc-section").length).toBeGreaterThan(0);
+  });
+
+  test("Save as Draft posts DRAFT payload with applicationId", async () => {
+    const store = buildStore({ rfiUpload: { responses: RESPONSES } });
+
+    renderWithStore(store);
+
+    // Wait for initial load to settle
+    await waitFor(() => expect(getRfiMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("button", { name: /save as draft/i }));
+
+    await waitFor(() =>
+      expect(postRfiResponseMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          state: "DRAFT",
+          applicationId: "APP123",
+          isRfiFullyAnswered: false,
+        })
+      )
+    );
+
+    expect(snackbarSpy).toHaveBeenCalledWith("Draft saved successfully.", "success");
+  });
+
+  test("Submit flow: opens confirmation and posts SUBMIT then shows ThankYouScreen", async () => {
+    const store = buildStore({ rfiUpload: { responses: RESPONSES } });
+
+    renderWithStore(store);
+
+    await waitFor(() => expect(getRfiMock).toHaveBeenCalled());
+
+    // Click "Submit documents" -> opens mocked ConfirmationDialogue
+    fireEvent.click(screen.getByRole("button", { name: /submit documents/i }));
+    expect(await screen.findByTestId("confirm")).toBeInTheDocument();
+
+    // In the dialog, click the built-in "Submit" button we rendered in the mock
+    fireEvent.click(screen.getByText("Submit"));
+
+    await waitFor(() =>
+      expect(postRfiResponseMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          state: "SUBMIT",
+          applicationId: "APP123",
+          isRfiFullyAnswered: true,
+        })
+      )
+    );
+
+    // After success we show ThankYouScreen
+    expect(await screen.findByText(/Thank you!/i)).toBeInTheDocument();
+  });
+});
 
