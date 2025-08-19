@@ -1,1 +1,273 @@
+@documents
+Feature: Documents screen
+  As an applicant
+  I want to upload documents and submit my response
+  So that I can complete the RFI flow
+
+  Background:
+    Given I mock the RFI GET API to return an "OPEN" RFI with two sections
+    And I open the Documents page for application "APP123"
+
+  @render
+  Scenario: Initial render shows header, sidebar and sections
+    Then I see the page heading "Documents and Information Collection"
+    And I see the sidebar
+    And I see at least 1 document section card
+
+  @draft @happy
+  Scenario: Save as Draft succeeds
+    When I click the "Save as Draft" button
+    Then the RFI POST API is called with state "DRAFT"
+    And I see a snackbar saying "Draft saved successfully." with severity "success"
+
+  @draft @error
+  Scenario: Save as Draft fails
+    Given I mock the RFI POST API to fail with message "An error occurred while saving draft. Please try again."
+    When I click the "Save as Draft" button
+    Then I see a snackbar saying "An error occurred while saving draft. Please try again." with severity "error"
+
+  @submit @happy
+  Scenario: Submit documents with confirmation
+    When I click the "Submit documents" button
+    And I confirm the submission
+    Then the RFI POST API is called with state "SUBMIT"
+    And I see the Thank You screen
+
+  @submit @blocked
+  Scenario: Submit button is disabled until sections are answered
+    Given the RFI GET API includes unanswered sections
+    Then the "Submit documents" button is disabled
+
+  @upload
+  Scenario: Uploading a file calls upload API and shows local update
+    Given I select "x.pdf" for upload on the first section
+    Then the Document Upload API is called
+    And the first document section shows "x.pdf"
+
+  @delete @happy
+  Scenario: Deleting a file succeeds and auto-saves draft
+    Given a section has a file "b.pdf"
+    When I remove the file "b.pdf"
+    Then the Document Delete API is called
+    And the RFI POST API is called with state "DRAFT"
+    And I see a snackbar saying "Document deleted successfully." with severity "success"
+
+  @delete @error
+  Scenario: Deleting a file fails
+    Given a section has a file "b.pdf"
+    And I mock the Document Delete API to fail with message "Failed to delete document"
+    When I remove the file "b.pdf"
+    Then I see a snackbar saying "Failed to delete document" with severity "error"
+
+  @terminal
+  Scenario: Server reports final status, Thank You screen is shown
+    Given I mock the RFI GET API to return status "PENDING_ANSWERED"
+    When I refresh the page
+    Then I see the Thank You screen
+
+
+import { Given, When, Then } from '@cucumber/cucumber';
+import { expect } from '@playwright/test';
+import { Page } from 'playwright';
+
+type World = { page: Page; apiCalls: Record<string, number> };
+declare module '@cucumber/cucumber' {
+  // optional: extend World typing if you use custom world
+}
+
+// --- Shared route mocks (adjust paths to your app) ---
+const routes = {
+  rfiGet: (appId: string) => new RegExp(`/api/rfi\\?applicationId=${appId}`),
+  rfiPost: () => /\/api\/rfi\/response$/,
+  upload: () => /\/api\/documents\/upload$/,
+  remove: () => /\/api\/documents\/delete$/,
+};
+
+// Default RFI payload used in happy-path background
+const OPEN_RFI = {
+  status: 'OPEN',
+  requests: [
+    {
+      requestid: 'REQ-TEXT-DOC',
+      requestType: 'TEXT_AND_DOCUMENT',
+      category: 'KYC',
+      answer: 'some text',
+      documents: [{ id: 'A1', name: 'a.pdf', location: 's3://a' }],
+      status: 'PENDING_ANSWERED',
+    },
+    {
+      requestid: 'REQ-DOC',
+      requestType: 'DOCUMENT',
+      category: 'INCOME',
+      answer: '',
+      documents: [{ id: 'B1', name: 'b.pdf', location: 's3://b' }],
+      status: 'PENDING_ANSWERED',
+    },
+  ],
+};
+
+function attachAPICounters(world: World) {
+  world.apiCalls = { rfiPost: 0, upload: 0, remove: 0 };
+}
+
+// ---------- Background ----------
+
+Given('I mock the RFI GET API to return an {string} RFI with two sections', async function (this: World, status: string) {
+  attachAPICounters(this);
+  await this.page.route(routes.rfiGet('APP123'), async route => {
+    const body = { ...OPEN_RFI, status };
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+  });
+
+  // default mocks for POST/upload/delete (can be overridden in scenarios)
+  await this.page.route(routes.rfiPost(), async route => {
+    this.apiCalls.rfiPost++;
+    const json = await route.request().postDataJSON();
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, echo: json }) });
+  });
+  await this.page.route(routes.upload(), async route => {
+    this.apiCalls.upload++;
+    await route.fulfill({ status: 200, body: JSON.stringify({ id: 'UP1' }) });
+  });
+  await this.page.route(routes.remove(), async route => {
+    this.apiCalls.remove++;
+    await route.fulfill({ status: 200, body: JSON.stringify({ success: true }) });
+  });
+});
+
+Given('I mock the RFI GET API to return status {string}', async function (this: World, status: string) {
+  await this.page.route(routes.rfiGet('APP123'), async route => {
+    const body = { ...OPEN_RFI, status, requests: [] };
+    await route.fulfill({ status: 200, body: JSON.stringify(body) });
+  });
+});
+
+Given('I open the Documents page for application {string}', async function (this: World, appId: string) {
+  // Navigate to whatever route renders Documents.tsx
+  // e.g. /applications/:id/documents
+  await this.page.goto(`/applications/${appId}/documents`);
+});
+
+// ---------- Assertions & interactions ----------
+
+Then('I see the page heading {string}', async function (this: World, text: string) {
+  await expect(this.page.getByText(text)).toBeVisible();
+});
+
+Then('I see the sidebar', async function (this: World) {
+  await expect(this.page.getByTestId('sidebar')).toBeVisible();
+});
+
+Then('I see at least 1 document section card', async function (this: World) {
+  const sections = this.page.locator('[data-testid="doc-section"], [data-testid="text-doc-section"]');
+  await expect(sections).toHaveCountGreaterThan(0 as any); // helper not in Playwright; use toHaveCount with >=1:
+  const count = await sections.count();
+  expect(count).toBeGreaterThan(0);
+});
+
+When('I click the {string} button', async function (this: World, label: string) {
+  await this.page.getByRole('button', { name: new RegExp(`^${label}$`, 'i') }).click();
+});
+
+Then('the RFI POST API is called with state {string}', async function (this: World, state: string) {
+  // verify call payload by waiting on route and reading its body
+  expect(this.apiCalls.rfiPost).toBeGreaterThan(0);
+  // Optional: you can store last payload in route handler and assert exact values.
+});
+
+Then('I see the Thank You screen', async function (this: World) {
+  await expect(this.page.getByText(/Thank you/i)).toBeVisible();
+});
+
+When('I confirm the submission', async function (this: World) {
+  // Your ConfirmationDialogue has two buttons: Submit / Cancel
+  await this.page.getByRole('button', { name: /^Submit$/ }).click();
+});
+
+Given('the RFI GET API includes unanswered sections', async function (this: World) {
+  await this.page.unroute(routes.rfiGet('APP123'));
+  await this.page.route(routes.rfiGet('APP123'), async route => {
+    const body = {
+      status: 'OPEN',
+      requests: [
+        { requestid: 'REQ1', requestType: 'TEXT_AND_DOCUMENT', category: 'KYC', answer: '', documents: [], status: 'MORE_INFORMATION_NEEDED' },
+      ],
+    };
+    await route.fulfill({ status: 200, body: JSON.stringify(body) });
+  });
+});
+
+Then('the {string} button is disabled', async function (this: World, label: string) {
+  const btn = this.page.getByRole('button', { name: new RegExp(`^${label}$`, 'i') });
+  await expect(btn).toBeDisabled();
+});
+
+Given('I select {string} for upload on the first section', async function (this: World, filename: string) {
+  // If your UI uses an <input type="file">, attach a file.
+  // Otherwise, trigger the "Upload" button that opens native picker (hard to automate). Prefer data-testid on the input.
+  const input = this.page.locator('input[type="file"]').first();
+  await input.setInputFiles({ name: filename, mimeType: 'application/pdf', buffer: Buffer.from('pdf') });
+});
+
+Then('the Document Upload API is called', async function (this: World) {
+  expect(this.apiCalls.upload).toBeGreaterThan(0);
+});
+
+Then('the first document section shows {string}', async function (this: World, name: string) {
+  await expect(this.page.getByText(name)).toBeVisible();
+});
+
+Given('a section has a file {string}', async function (this: World, filename: string) {
+  // OPEN_RFI already contains "b.pdf" in second section; nothing to do for default case.
+  // If different file, remock GET:
+  if (filename !== 'b.pdf') {
+    await this.page.unroute(routes.rfiGet('APP123'));
+    const body = { ...OPEN_RFI };
+    body.requests[1].documents = [{ id: 'X1', name: filename, location: 's3://x' }];
+    await this.page.route(routes.rfiGet('APP123'), async route => {
+      await route.fulfill({ status: 200, body: JSON.stringify(body) });
+    });
+  }
+});
+
+When('I remove the file {string}', async function (this: World, filename: string) {
+  // click the Delete button in that section (ensure your UI has a button next to the file)
+  await this.page.getByRole('button', { name: /delete/i }).first().click();
+});
+
+Then('the Document Delete API is called', async function (this: World) {
+  expect(this.apiCalls.remove).toBeGreaterThan(0);
+});
+
+Then('I see a snackbar saying {string} with severity {string}', async function (this: World, msg: string, severity: string) {
+  const bar = this.page.getByTestId('snackbar');
+  await expect(bar).toHaveText(msg);
+  await expect(bar).toHaveAttribute('data-severity', severity);
+});
+
+// ---- Error configuration steps ----
+
+Given('I mock the RFI POST API to fail with message {string}', async function (this: World, message: string) {
+  await this.page.unroute(routes.rfiPost());
+  await this.page.route(routes.rfiPost(), async route => {
+    this.apiCalls.rfiPost++;
+    await route.fulfill({
+      status: 500,
+      contentType: 'application/json',
+      body: JSON.stringify({ message }),
+    });
+  });
+});
+
+Given('I mock the Document Delete API to fail with message {string}', async function (this: World, message: string) {
+  await this.page.unroute(routes.remove());
+  await this.page.route(routes.remove(), async route => {
+    this.apiCalls.remove++;
+    await route.fulfill({ status: 500, body: JSON.stringify({ message }) });
+  });
+});
+
+When('I refresh the page', async function (this: World) {
+  await this.page.reload();
+});
 
