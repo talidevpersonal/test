@@ -1,1 +1,296 @@
+import { Given, When, Then } from '@cucumber/cucumber';
+import { expect } from '@playwright/test';
+import { Page } from 'playwright';
+
+type World = { page: Page; lastRow?: { locatorStr: string } };
+
+function sectionLocator(page: Page, sectionTitle: 'Confirmation Required' | 'Pending Documents') {
+  // Section container by data attribute; if you prefer header text, switch to getByRole('heading', { name: sectionTitle })
+  const type = sectionTitle === 'Confirmation Required' ? 'confirmation-required' : 'pending-documents';
+  return page.locator(`[data-testid="section"][data-section-type="${type}"]`);
+}
+
+function rowByName(section: any, name: string) {
+  return section.locator(`[data-testid="doc-row"][data-row-name="${name}"]`);
+}
+
+function currentRow(page: Page, world: World) {
+  if (!world.lastRow) throw new Error('No row is in context. Use "I locate row ..." first.');
+  return page.locator(world.lastRow.locatorStr);
+}
+
+/* ----------------- Navigation / background ----------------- */
+
+Given('I am on the Documents page for application {string}', async function (this: World, appId: string) {
+  await this.page.goto(`/applications/${appId}/documents`);
+});
+
+Given('the page has {string} and {string} sections rendered', async function (this: World, a: string, b: string) {
+  await expect(sectionLocator(this.page, a as any)).toBeVisible();
+  await expect(sectionLocator(this.page, b as any)).toBeVisible();
+});
+
+/* ----------------- Layout assertions ----------------- */
+
+Then('I see the page title {string}', async function (this: World, title: string) {
+  await expect(this.page.getByTestId('page-title')).toHaveText(title);
+});
+
+Then('I see a {string} button', async function (this: World, label: string) {
+  await expect(this.page.getByRole('button', { name: new RegExp(`^${label}$`, 'i') })).toBeVisible();
+});
+
+Then('I see at least 1 row in {string}', async function (this: World, sectionTitle: string) {
+  const sec = sectionLocator(this.page, sectionTitle as any);
+  await expect(sec.locator('[data-testid="doc-row"]')).toHaveCountGreaterThan(0 as any);
+  const count = await sec.locator('[data-testid="doc-row"]').count();
+  expect(count).toBeGreaterThan(0);
+});
+
+/* ----------------- Row context ----------------- */
+
+When('I locate row {string} in {string}', async function (this: World, rowName: string, sectionTitle: string) {
+  const sec = sectionLocator(this.page, sectionTitle as any);
+  const row = rowByName(sec, rowName);
+  await expect(row).toBeVisible();
+  this.lastRow = { locatorStr: await row.evaluate((el) => {
+    // make a stable selector for this element
+    const rowEl = el as HTMLElement;
+    return `[data-testid="doc-row"][data-row-id="${rowEl.getAttribute('data-row-id')}"]`;
+  }) };
+});
+
+/* ----------------- Row interactions ----------------- */
+
+When('I attach the file {string} on this row', async function (this: World, filename: string) {
+  const row = currentRow(this.page, this);
+  const fileInput = row.locator('[data-testid="file-input"]');
+  // ensure the input exists and is visible for setInputFiles
+  await expect(fileInput).toBeAttached();
+  await fileInput.setInputFiles({
+    name: filename,
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('pdf'),
+  });
+});
+
+Then('the row shows the file {string}', async function (this: World, filename: string) {
+  const row = currentRow(this.page, this);
+  await expect(row.getByText(filename)).toBeVisible();
+});
+
+When('I enter the comment {string} on this row', async function (this: World, text: string) {
+  const row = currentRow(this.page, this);
+  await row.locator('[data-testid="comment-input"]').fill(text);
+});
+
+When('I type comment {string} on this row', async function (this: World, text: string) {
+  const row = currentRow(this.page, this);
+  await row.locator('[data-testid="comment-input"]').fill(text);
+});
+
+Then('the row shows a field error {string}', async function (this: World, msg: string) {
+  const row = currentRow(this.page, this);
+  await expect(row.locator('[data-testid="error"]')).toHaveText(new RegExp(msg, 'i'));
+});
+
+Then('the field error disappears', async function (this: World) {
+  const row = currentRow(this.page, this);
+  await expect(row.locator('[data-testid="error"]')).toBeHidden();
+});
+
+/* ----------------- Submit enablement ----------------- */
+
+Given('at least one Confirmation Required row is missing a comment', async function () {
+  // Precondition is the default state on fresh page; no action required.
+  // If your app pre-populates, you can forcibly clear one input:
+  // const sec = sectionLocator(this.page, 'Confirmation Required');
+  // await rowByName(sec, 'Dual Nationality').locator('[data-testid="comment-input"]').fill('');
+});
+
+Given('at least one Pending Documents row is missing a document', async function () {
+  // Likewise a default precondition; no action needed.
+});
+
+Then('the {string} button is disabled', async function (this: World, label: string) {
+  await expect(this.page.getByRole('button', { name: new RegExp(`^${label}$`, 'i') })).toBeDisabled();
+});
+
+When('I satisfy all required fields across all rows', async function (this: World) {
+  // Minimal path: add a comment in every CR row and attach a file in every PD row
+  const cr = sectionLocator(this.page, 'Confirmation Required');
+  const pd = sectionLocator(this.page, 'Pending Documents');
+  const crRows = cr.locator('[data-testid="doc-row"]');
+  const pdRows = pd.locator('[data-testid="doc-row"]');
+  const crCount = await crRows.count();
+  for (let i = 0; i < crCount; i++) {
+    await crRows.nth(i).locator('[data-testid="comment-input"]').fill('ok');
+  }
+  const pdCount = await pdRows.count();
+  for (let i = 0; i < pdCount; i++) {
+    const input = pdRows.nth(i).locator('[data-testid="file-input"]');
+    await input.setInputFiles({ name: `doc-${i + 1}.pdf`, mimeType: 'application/pdf', buffer: Buffer.from('pdf') });
+  }
+});
+
+Then('the {string} button becomes enabled', async function (this: World, label: string) {
+  await expect(this.page.getByRole('button', { name: new RegExp(`^${label}$`, 'i') })).toBeEnabled();
+});
+
+/* ----------------- Page-level actions ----------------- */
+
+When('I click {string}', async function (this: World, label: string) {
+  await this.page.getByRole('button', { name: new RegExp(`^${label}$`, 'i') }).click();
+});
+
+Then('I see a snackbar {string} with severity {string}', async function (this: World, msg: string, severity: string) {
+  const bar = this.page.getByTestId('snackbar');
+  await expect(bar).toHaveText(new RegExp(msg, 'i'));
+  await expect(bar).toHaveAttribute('data-severity', severity);
+});
+
+When('I confirm the submission', async function (this: World) {
+  await this.page.getByRole('button', { name: /^Submit$/ }).click();
+});
+
+Then('I see the Thank You screen', async function (this: World) {
+  await expect(this.page.getByText(/Thank you/i)).toBeVisible();
+});
+
+/* ----------------- Delete ----------------- */
+
+Given('the row currently has the file {string}', async function (this: World, file: string) {
+  const row = currentRow(this.page, this);
+  await expect(row.getByText(file)).toBeVisible();
+});
+
+When('I remove the file {string} from this row', async function (this: World, _file: string) {
+  const row = currentRow(this.page, this);
+  await row.locator('[data-testid="remove-file"]').click();
+});
+
+Then('a draft is auto-saved', async function () {
+  // Assert snackbar or network in your app; we check snackbar message:
+  await expect(this.page.getByTestId('snackbar')).toBeVisible();
+});
+
+/* ----------------- Error configuration ----------------- */
+
+Given('I mock the delete API to fail with {string}', async function (this: World, message: string) {
+  // If you run against a dev server, replace with route interception here:
+  // await this.page.unroute('**/api/documents/delete');
+  // await this.page.route('**/api/documents/delete', route => route.fulfill({ status: 500, body: JSON.stringify({ message }) }));
+  // If you can’t intercept in this env, you can skip this step and rely on backend fixture.
+});
+
+
+
+// In the list/table rows add:
+<div data-testid="section" data-section-type="confirmation-required"> … </div>
+<div data-testid="section" data-section-type="pending-documents"> … </div>
+
+{/* Per row */}
+<div
+  data-testid="doc-row"
+  data-row-id={request.requestid}
+  data-row-type={request.requestType}      // "TEXT_AND_DOCUMENT" | "DOCUMENT"
+  data-row-name={request.documentName}     // e.g. "Trade license"
+/>
+
+{/* Controls inside each row */}
+<input data-testid="comment-input" ... />
+<button data-testid="attach-button" ... />
+<input type="file" data-testid="file-input" style={{ display: 'none' }} ... />
+<button data-testid="remove-file" ... />        {/* optional */}
+<div data-testid="error" />                      {/* render field-level message here */}
+
+/* Page-level controls */
+<h1 data-testid="page-title">Documents and Information Collection</h1>
+<button data-testid="save-draft">Save as Draft</button>
+<button data-testid="submit" disabled={...}>Submit documents</button>
+
+/* Snackbar implementation you already mocked in unit tests */
+<div data-testid="snackbar" data-severity="success|error">...</div>
+
+@documents
+Feature: Documents page – upload & comments rules
+  As an applicant
+  I want correct validation per section type
+  So I can complete the RFI submission
+
+  Background:
+    Given I am on the Documents page for application "APP123"
+    And the page has "Confirmation Required" and "Pending Documents" sections rendered
+
+  @render
+  Scenario: Initial layout renders correctly
+    Then I see the page title "Documents and Information Collection"
+    And I see a "Save as Draft" button
+    And I see a "Submit documents" button
+    And I see at least 1 row in "Confirmation Required"
+    And I see at least 1 row in "Pending Documents"
+
+  @cr-validation
+  Scenario Outline: Confirmation Required – comment mandatory, attach optional
+    When I locate row "<rowName>" in "Confirmation Required"
+    And I attach the file "sample.pdf" on this row
+    Then the row shows the file "sample.pdf"
+    And the row shows a field error "Comment is required"
+    When I enter the comment "Looks good" on this row
+    Then the field error disappears
+
+    Examples:
+      | rowName                  |
+      | Dual Nationality         |
+      | ByLaws - Akram - Company |
+
+  @pd-validation
+  Scenario Outline: Pending Documents – attachment mandatory, comment optional
+    When I locate row "<rowName>" in "Pending Documents"
+    And I type comment "here you go" on this row
+    Then the row shows a field error "Document is required"
+    When I attach the file "trade-license.pdf" on this row
+    Then the field error disappears
+    And the row shows the file "trade-license.pdf"
+
+    Examples:
+      | rowName           |
+      | Trade license     |
+      | Passport          |
+
+  @submit-disabled
+  Scenario: Submit disabled until all rules satisfied
+    Given at least one Confirmation Required row is missing a comment
+    Or at least one Pending Documents row is missing a document
+    Then the "Submit documents" button is disabled
+    When I satisfy all required fields across all rows
+    Then the "Submit documents" button becomes enabled
+
+  @draft
+  Scenario: Save as Draft shows success snackbar
+    When I click "Save as Draft"
+    Then I see a snackbar "Draft saved successfully." with severity "success"
+
+  @submit
+  Scenario: Submit path with confirmation dialog
+    When I click "Submit documents"
+    And I confirm the submission
+    Then I see the Thank You screen
+
+  @delete
+  Scenario: Delete a previously attached file auto-saves and shows message
+    Given I locate row "Trade license" in "Pending Documents"
+    And the row currently has the file "trade-license.pdf"
+    When I remove the file "trade-license.pdf" from this row
+    Then a draft is auto-saved
+    And I see a snackbar "Document deleted successfully." with severity "success"
+
+  @delete-error
+  Scenario: Delete error shows error snackbar
+    Given I mock the delete API to fail with "Failed to delete document"
+    And I locate row "Trade license" in "Pending Documents"
+    And the row currently has the file "trade-license.pdf"
+    When I remove the file "trade-license.pdf" from this row
+    Then I see a snackbar "Failed to delete document" with severity "error"
+
 
