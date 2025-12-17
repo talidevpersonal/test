@@ -1,87 +1,153 @@
-import React from 'react';
-import { render } from '@testing-library/react';
-import { useTokenAutoRefresh } from './useTokenAutoRefresh';
-import { Provider } from 'react-redux';
-import configureStore from 'redux-mock-store';
-import * as useAuthModule from './useAuth'; // assuming it's in same folder
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Figma File Meta / Components / Styles</title>
+</head>
+<body>
+  <h1>Figma Design Data Viewer</h1>
 
-jest.useFakeTimers();
+  <label>
+    File key:
+    <input id="fileKey" placeholder="Enter Figma File Key" style="width: 320px;" />
+  </label>
+  <br /><br />
 
-const mockStore = configureStore([]);
+  <button onclick="fetchFileMeta()">Get File Meta</button>
+  <button onclick="fetchComponents()">Get Components</button>
+  <button onclick="fetchStyles()">Get Styles</button>
 
-describe('useTokenAutoRefresh', () => {
-  let refreshTokenMock: jest.Mock;
+  <pre id="output" style="margin-top: 16px; background: #111; color: #0f0; padding: 12px; max-height: 70vh; overflow: auto;"></pre>
 
-  beforeEach(() => {
-    refreshTokenMock = jest.fn();
+  <script>
+    // ⚠️ For local testing ONLY. Don't ship this token to production.
+    const FIGMA_TOKEN = "YOUR_FIGMA_PERSONAL_ACCESS_TOKEN";
 
-    // Mock useAuth to return refreshToken
-    jest.spyOn(useAuthModule, 'default').mockReturnValue({
-      refreshToken: refreshTokenMock,
-    });
-  });
+    function getFileKey() {
+      const fileKey = document.getElementById("fileKey").value.trim();
+      if (!fileKey) {
+        alert("Please enter a file key");
+        throw new Error("Missing fileKey");
+      }
+      return fileKey;
+    }
 
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
+    function setOutput(text) {
+      document.getElementById("output").textContent = text;
+    }
 
-  const TestComponent = () => {
-    useTokenAutoRefresh();
-    return <div>Test</div>;
-  };
+    async function safeFetch(url) {
+      const res = await fetch(url, {
+        headers: {
+          "X-Figma-Token": FIGMA_TOKEN
+        }
+      });
 
-  it('calls refreshToken before expiry time', () => {
-    const store = mockStore({
-      auth: {
-        expires_in: Date.now() + 50000, // 50 seconds from now
-      },
-    });
+      const text = await res.text();
 
-    render(
-      <Provider store={store}>
-        <TestComponent />
-      </Provider>
-    );
+      if (!res.ok) {
+        throw new Error(`API Error ${res.status}:\n${text}`);
+      }
 
-    // Fast-forward timers to simulate passage of time
-    jest.advanceTimersByTime(1000);
+      return JSON.parse(text);
+    }
 
-    expect(refreshTokenMock).toHaveBeenCalled();
-  });
+    // 1) Lightweight meta (you already used this)
+    async function fetchFileMeta() {
+      try {
+        const fileKey = getFileKey();
+        setOutput("Loading file metadata...");
 
-  it('does not call refreshToken if expires_in is not present', () => {
-    const store = mockStore({
-      auth: {
-        expires_in: null,
-      },
-    });
+        const url = `https://api.figma.com/v1/files/${encodeURIComponent(fileKey)}/meta`;
+        const data = await safeFetch(url);
 
-    render(
-      <Provider store={store}>
-        <TestComponent />
-      </Provider>
-    );
+        const f = data.file || {};
 
-    jest.advanceTimersByTime(1000);
+        const meta = {
+          name: f.name,
+          folderName: f.folder_name,
+          lastTouchedAt: f.last_touched_at,
+          creator: f.creator?.handle || f.creator?.id || null,
+          lastTouchedBy: f.last_touched_by?.handle || f.last_touched_by?.id || null,
+          thumbnailUrl: f.thumbnail_url,
+          editorType: f.editorType,
+          version: f.version,
+          role: f.role,
+          linkAccess: f.link_access,
+          url: f.url
+        };
 
-    expect(refreshTokenMock).not.toHaveBeenCalled();
-  });
+        setOutput(JSON.stringify(meta, null, 2));
+      } catch (err) {
+        setOutput("Error:\n" + err.message);
+      }
+    }
 
-  it('does not call refreshToken if expires_in is far in the future', () => {
-    const store = mockStore({
-      auth: {
-        expires_in: Date.now() + 5 * 60 * 1000, // 5 minutes later
-      },
-    });
+    // 2) Components metadata – good for mapping to React components
+    async function fetchComponents() {
+      try {
+        const fileKey = getFileKey();
+        setOutput("Loading components...");
 
-    render(
-      <Provider store={store}>
-        <TestComponent />
-      </Provider>
-    );
+        const url = `https://api.figma.com/v1/files/${encodeURIComponent(fileKey)}/components`;
+        const data = await safeFetch(url);
 
-    jest.advanceTimersByTime(1000);
+        // data.meta.components is an array
+        const components = (data.meta && data.meta.components) || [];
 
-    expect(refreshTokenMock).not.toHaveBeenCalled();
-  });
-});
+        // Simplify to essential fields
+        const simplified = components.map(c => ({
+          key: c.key,
+          nodeId: c.node_id,
+          name: c.name,
+          description: c.description,
+          createdAt: c.created_at,
+          updatedAt: c.updated_at,
+          visible: c.visible,
+          containingFrame: c.containing_frame?.name || null,
+          containingPage: c.containing_page?.name || null
+        }));
+
+        setOutput(JSON.stringify(simplified, null, 2));
+      } catch (err) {
+        setOutput("Error:\n" + err.message);
+      }
+    }
+
+    // 3) Styles (text styles, color styles, effects, grids)
+    async function fetchStyles() {
+      try {
+        const fileKey = getFileKey();
+        setOutput("Loading styles...");
+
+        const url = `https://api.figma.com/v1/files/${encodeURIComponent(fileKey)}/styles`;
+        const data = await safeFetch(url);
+
+        const styles = (data.meta && data.meta.styles) || [];
+
+        // Group by style type (FILL, TEXT, EFFECT, GRID)
+        const grouped = styles.reduce(
+          (acc, s) => {
+            const type = s.style_type || "UNKNOWN";
+            if (!acc[type]) acc[type] = [];
+            acc[type].push({
+              key: s.key,
+              name: s.name,
+              description: s.description,
+              remote: s.remote,
+              createdAt: s.created_at,
+              updatedAt: s.updated_at
+            });
+            return acc;
+          },
+          {}
+        );
+
+        setOutput(JSON.stringify(grouped, null, 2));
+      } catch (err) {
+        setOutput("Error:\n" + err.message);
+      }
+    }
+  </script>
+</body>
+</html>
